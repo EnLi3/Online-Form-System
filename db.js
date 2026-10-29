@@ -1,11 +1,13 @@
 // db.js
+// db.js
 const Database = require('better-sqlite3');
+const bcrypt = require('bcryptjs'); // <--- ADD THIS LINE
 const path = require('path');
 
 const dbPath = path.join(__dirname, 'data.db');
 const db = new Database(dbPath);
 
-// Enable WAL mode & foreign keys for stability on Linux/Render
+// Enable WAL mode & foreign keys
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
