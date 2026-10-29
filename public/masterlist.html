@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Space Rental Master List</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-7xl mx-auto space-y-6">
+    <!-- Navbar / Header -->
+    <div class="flex justify-between items-center bg-white p-5 rounded-2xl shadow">
+      <div>
+        <h2 class="text-xl font-black text-slate-800">Space Rental Master List</h2>
+        <p id="userRoleBadge" class="text-xs text-slate-500 mt-0.5"></p>
+      </div>
+      <div class="flex items-center space-x-3">
+        <button id="addMasterBtn" onclick="openMasterModal('add')" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition cursor-pointer">
+          + Create New SR Request
+        </button>
+        <button id="manageMaterialsBtn" onclick="openMaterialModal()" class="hidden bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition cursor-pointer">
+          ⚙️ Manage Material Prices
+        </button>
+        <a href="/index.html" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl transition cursor-pointer">
+          ← Back to Dashboard
+        </a>
+      </div>
+    </div>
+
+    <!-- Restricted Notice for Non-Directors -->
+    <div id="restrictionNotice" class="hidden bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-xs font-semibold">
+      ℹ️ Note: You are viewing in read-only mode. Only Tier 1 Sales Directors are authorized to create or modify Master List SR requests.
+    </div>
+
+    <!-- Master List Table Container -->
+    <div class="bg-white p-6 rounded-2xl shadow overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="border-b bg-slate-50 text-slate-600 uppercase tracking-wider text-[11px]">
+            <th class="p-3">SR Ref #</th>
+            <th class="p-3">Region / NE</th>
+            <th class="p-3">Health Care Institution</th>
+            <th class="p-3">Payee & Reg No.</th>
+            <th class="p-3">Bank Details</th>
+            <th class="p-3">Duration & Dates</th>
+            <th class="p-3">Materials & Total (RM)</th>
+            <th class="p-3" id="actionHeaderCol">Action</th>
+          </tr>
+        </thead>
+        <tbody id="masterTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- CREATE / EDIT MASTERLIST SR MODAL (Director Only) -->
+  <div id="masterModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+    <div class="bg-white max-w-3xl w-full rounded-2xl p-6 sm:p-8 my-auto shadow-xl">
+      <div class="flex justify-between items-center border-b pb-3 mb-4">
+        <h3 id="modalTitle" class="font-bold text-lg text-blue-700">Create New SR Request in Masterlist</h3>
+        <button type="button" onclick="closeMasterModal()" class="text-slate-500 hover:text-black font-bold">✕</button>
+      </div>
+
+      <form id="masterForm" onsubmit="submitMasterRecord(event)" class="space-y-4 text-xs">
+        <input type="hidden" id="edit_record_id" />
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">SR Ref #</label>
+            <input name="sr_ref_no" id="sr_ref_no" value="SR-2026-NEW" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Region</label>
+            <input name="region" id="region" value="CREC" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">NE (Sales Exec)</label>
+            <input name="ne_name" id="ne_name" placeholder="Sales Executive Name" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Health Care Institution (Premis)</label>
+            <input name="clinic_name" id="clinic_name" placeholder="Clinic / Hospital Name" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Payee Name (Business)</label>
+            <input name="payee_name" id="payee_name" placeholder="Payee Entity Name" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Business Registration No. (Borang 15 / APC)</label>
+            <input name="business_reg_no" id="business_reg_no" placeholder="e.g. 199501012653" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">HCI Address</label>
+          <textarea name="hci_address" id="hci_address" rows="2" placeholder="Full institution address..." required class="w-full border p-2 rounded bg-slate-50"></textarea>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Payee Bank Name</label>
+            <input name="payee_bank_name" id="payee_bank_name" value="Maybank" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+          <div class="col-span-2">
+            <label class="block font-semibold text-slate-600 mb-1">Payee Account No.</label>
+            <input name="payee_acc_no" id="payee_acc_no" placeholder="Bank Account Number" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Person In Charge (PIC)</label>
+            <input name="pic_name" id="pic_name" placeholder="Dr. Name" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Placement Location</label>
+            <input name="placement_location" id="placement_location" value="Consultation Suite" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Duration (Months)</label>
+            <input type="number" name="period_months" id="period_months" value="3" min="1" oninput="calculateMasterTotal()" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Start Date</label>
+            <input type="date" name="start_date" id="start_date" value="2026-06-01" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">End Date</label>
+            <input type="date" name="end_date" id="end_date" value="2026-08-31" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+        </div>
+
+        <!-- Dynamic POSM Materials Selector -->
+        <div class="border p-3 rounded-xl bg-slate-50 space-y-2">
+          <label class="block font-bold text-slate-700">POSM Materials & Quantities (Prices auto-calculated)</label>
+          <div id="materialInputsContainer" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1"></div>
+          <div class="text-right font-bold text-blue-700 pt-2 border-t">
+            Calculated Total Amount: RM <span id="displayTotalAmount">0.00</span>
+            <input type="hidden" name="total_amount" id="total_amount" value="0" />
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t">
+          <button type="button" onclick="closeMasterModal()" class="bg-slate-200 px-4 py-2 rounded font-semibold">Cancel</button>
+          <button type="submit" id="saveMasterBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded font-semibold">Save Masterlist Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MATERIAL PRICE MANAGER MODAL -->
+  <div id="materialModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+    <div class="bg-white max-w-xl w-full rounded-2xl p-6 sm:p-8 my-auto shadow-xl">
+      <div class="flex justify-between items-center border-b pb-3 mb-4">
+        <h3 class="font-bold text-lg text-slate-800">Manage POSM Materials & Default Prices</h3>
+        <button type="button" onclick="closeMaterialModal()" class="text-slate-500 hover:text-black font-bold">✕</button>
+      </div>
+
+      <form onsubmit="saveMaterial(event)" class="space-y-3 text-xs bg-slate-50 p-4 rounded-xl border mb-4">
+        <input type="hidden" id="mat_id" />
+        <div class="grid grid-cols-3 gap-2">
+          <div class="col-span-2">
+            <label class="block font-semibold text-slate-600 mb-1">Material Name</label>
+            <input id="mat_name" placeholder="e.g. Poster" required class="w-full border p-2 rounded bg-white" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Category / Size</label>
+            <input id="mat_cat" placeholder="Small" required class="w-full border p-2 rounded bg-white" />
+          </div>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Unit Price (RM)</label>
+          <input type="number" step="0.01" id="mat_price" placeholder="500.00" required class="w-full border p-2 rounded bg-white font-bold text-blue-700" />
+        </div>
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" onclick="resetMatForm()" class="bg-slate-200 px-3 py-1.5 rounded font-semibold">Clear</button>
+          <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded font-semibold">Save Material</button>
+        </div>
+      </form>
+
+      <div class="max-h-60 overflow-y-auto border rounded-xl">
+        <table class="w-full text-left text-xs">
+          <thead>
+          <tr class="border-b bg-slate-50 text-slate-600 uppercase tracking-wider text-[11px]">
+            <th class="p-3">SR Ref #</th>
+            <th class="p-3">Region / NE</th>
+            <th class="p-3">Health Care Institution</th>
+            <th class="p-3">Payee & Reg No.</th>
+            <th class="p-3">Bank Details</th>
+            <th class="p-3">Duration & Dates</th>
+            <th class="p-3">Materials & Total (RM)</th>
+            <th class="p-3">Approval Status</th>
+            <th class="p-3">Action</th>
+          </tr>
+        </thead>
+          <tbody id="materialTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = sessionStorage.getItem('clinic_token');
+    const savedUser = sessionStorage.getItem('clinic_user');
+    if (!token || !savedUser) window.location.href = '/index.html';
+    const currentUser = JSON.parse(savedUser);
+
+    let globalMaterials = [];
+    let cachedMasterRecords = [];
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('userRoleBadge').innerText = `Logged in as: ${currentUser.full_name} (${currentUser.role})`;
+      
+      // Allow all users to create and manage master list records & material pricing
+      document.getElementById('addMasterBtn').classList.remove('hidden');
+      document.getElementById('manageMaterialsBtn').classList.remove('hidden');
+
+      await loadMaterials();
+      loadMasterlist();
+    });
+
+    async function loadMaterials() {
+      try {
+        const res = await fetch('/api/materials', { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          globalMaterials = await res.json();
+          renderMaterialInputs();
+          renderMaterialTable();
+        }
+      } catch (err) {
+        console.error('Failed to load materials:', err);
+      }
+    }
+
+    function renderMaterialInputs(selectedQtys = {}) {
+      const container = document.getElementById('materialInputsContainer');
+      container.innerHTML = globalMaterials.map(m => {
+        const qty = selectedQtys[m.material_name] || 0;
+        return `
+          <div class="bg-white p-2 rounded border flex flex-col justify-between">
+            <span class="font-semibold text-[11px] truncate" title="${m.material_name}">${m.material_name}</span>
+            <div class="flex items-center justify-between mt-1">
+              <span class="text-[10px] text-slate-400">RM ${m.unit_price}</span>
+              <input type="number" min="0" value="${qty}" data-mat="${m.material_name}" data-price="${m.unit_price}" oninput="calculateMasterTotal()" class="mat-qty-input w-14 border p-1 rounded text-center text-xs" />
+            </div>
+          </div>
+        `;
+      }).join('');
+      calculateMasterTotal();
+    }
+
+    function calculateMasterTotal() {
+      let total = 0;
+      const inputs = document.querySelectorAll('.mat-qty-input');
+      inputs.forEach(input => {
+        const qty = Number(input.value || 0);
+        const price = Number(input.getAttribute('data-price') || 0);
+        total += qty * price;
+      });
+      document.getElementById('displayTotalAmount').innerText = total.toFixed(2);
+      document.getElementById('total_amount').value = total.toFixed(2);
+    }
+
+    async function loadMasterlist() {
+      try {
+        const res = await fetch('/api/masterlist', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        cachedMasterRecords = await res.json();
+        const tbody = document.getElementById('masterTableBody');
+        const isDirector = ['TIER_1', 'SUPER_ADMIN'].includes(currentUser.role);
+
+        if (cachedMasterRecords.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400 italic">No Master List records found.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = cachedMasterRecords.map(r => {
+          const status = r.approval_status || 'PENDING_T3';
+          const badgeColor = status === 'APPROVED_CLOSED' ? 'bg-emerald-100 text-emerald-700' :
+                             status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700';
+          
+          return `
+            <tr class="border-b hover:bg-slate-50">
+              <td class="p-3 font-mono font-bold text-blue-600">${r.sr_ref_no}</td>
+              <td class="p-3"><b>${r.region}</b><br><span class="text-slate-500">NE: ${r.ne_name}</span></td>
+              <td class="p-3"><b>${r.clinic_name}</b><br><span class="text-slate-500">PIC: ${r.pic_name}</span></td>
+              <td class="p-3"><b>${r.payee_name}</b><br><span class="text-slate-500 font-mono">Reg: ${r.business_reg_no}</span></td>
+              <td class="p-3 font-mono text-[11px]"><b>${r.payee_bank_name}</b><br>${r.payee_acc_no}</td>
+              <td class="p-3 text-[11px]">${r.start_date} to<br>${r.end_date} (${r.period_months} mo)</td>
+              <td class="p-3"><b>${r.material_details}</b><br><span class="text-blue-700 font-bold">RM ${Number(r.total_amount).toFixed(2)}</span></td>
+              <td class="p-3">
+                <span class="px-2 py-1 rounded text-[10px] font-bold ${badgeColor}">${status}</span>
+              </td>
+              <td class="p-3 space-x-1">
+                <button type="button" onclick="openMasterModal('edit', ${r.id})" class="bg-amber-500 text-white px-2.5 py-1 rounded text-xs font-semibold">Edit</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function openMasterModal(mode, id = null) {
+      const modal = document.getElementById('masterModal');
+      const form = document.getElementById('masterForm');
+      form.reset();
+      document.getElementById('edit_record_id').value = '';
+
+      if (mode === 'edit' && id) {
+        document.getElementById('modalTitle').innerText = 'Edit Masterlist SR Request';
+        const record = cachedMasterRecords.find(r => r.id === id);
+        if (record) {
+          document.getElementById('edit_record_id').value = record.id;
+          document.getElementById('sr_ref_no').value = record.sr_ref_no;
+          document.getElementById('region').value = record.region;
+          document.getElementById('ne_name').value = record.ne_name;
+          document.getElementById('clinic_name').value = record.clinic_name;
+          document.getElementById('payee_name').value = record.payee_name;
+          document.getElementById('business_reg_no').value = record.business_reg_no;
+          document.getElementById('hci_address').value = record.hci_address;
+          document.getElementById('payee_bank_name').value = record.payee_bank_name;
+          document.getElementById('payee_acc_no').value = record.payee_acc_no;
+          document.getElementById('pic_name').value = record.pic_name;
+          document.getElementById('placement_location').value = record.placement_location;
+          document.getElementById('period_months').value = record.period_months;
+          document.getElementById('start_date').value = record.start_date;
+          document.getElementById('end_date').value = record.end_date;
+
+          let parsedQtys = {};
+          try { parsedQtys = JSON.parse(record.materials_json || '{}'); } catch(e){}
+          renderMaterialInputs(parsedQtys);
+        }
+      } else {
+        document.getElementById('modalTitle').innerText = 'Create New SR Request in Masterlist';
+        document.getElementById('sr_ref_no').value = `SR-2026-${Math.floor(100+Math.random()*900)}`;
+        renderMaterialInputs({});
+      }
+      modal.classList.remove('hidden');
+    }
+
+    function closeMasterModal() { document.getElementById('masterModal').classList.add('hidden'); }
+
+    async function submitMasterRecord(e) {
+      e.preventDefault();
+      const recordId = document.getElementById('edit_record_id').value;
+      
+      const formData = new FormData(e.target);
+      const payload = Object.fromEntries(formData.entries());
+
+      // Gather material qtys & summary string
+      const materialsJson = {};
+      const summaryArr = [];
+      document.querySelectorAll('.mat-qty-input').forEach(input => {
+        const qty = Number(input.value || 0);
+        if (qty > 0) {
+          const matName = input.getAttribute('data-mat');
+          materialsJson[matName] = qty;
+          summaryArr.push(`${matName} (Qty: ${qty})`);
+        }
+      });
+
+      payload.materials_json = materialsJson;
+      payload.material_details = summaryArr.join(', ') || 'No material selected';
+
+      const method = recordId ? 'PUT' : 'POST';
+      const endpoint = recordId ? `/api/masterlist/${recordId}` : '/api/masterlist';
+
+      try {
+        const res = await fetch(endpoint, {
+          method: method,
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) return alert(data.error || 'Failed to save record');
+
+        alert(data.message);
+        closeMasterModal();
+        loadMasterlist();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    function renderMaterialTable() {
+      const tbody = document.getElementById('materialTableBody');
+      if (tbody) {
+        tbody.innerHTML = globalMaterials.map(m => `
+          <tr class="border-b hover:bg-white">
+            <td class="p-2.5 font-bold">${m.material_name}</td>
+            <td class="p-2.5 text-slate-500">${m.category}</td>
+            <td class="p-2.5 font-bold text-blue-600">RM ${Number(m.unit_price).toFixed(2)}</td>
+            <td class="p-2.5">
+              <button type="button" onclick="editMaterial(${m.id}, '${m.material_name}', '${m.category}', ${m.unit_price})" class="bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-semibold">Edit</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function openMaterialModal() { document.getElementById('materialModal').classList.remove('hidden'); }
+    function closeMaterialModal() { document.getElementById('materialModal').classList.add('hidden'); }
+    function resetMatForm() {
+      document.getElementById('mat_id').value = '';
+      document.getElementById('mat_name').value = '';
+      document.getElementById('mat_cat').value = '';
+      document.getElementById('mat_price').value = '';
+    }
+    function editMaterial(id, name, cat, price) {
+      document.getElementById('mat_id').value = id;
+      document.getElementById('mat_name').value = name;
+      document.getElementById('mat_cat').value = cat;
+      document.getElementById('mat_price').value = price;
+    }
+
+    async function saveMaterial(e) {
+      e.preventDefault();
+      const payload = {
+        id: document.getElementById('mat_id').value || null,
+        material_name: document.getElementById('mat_name').value,
+        category: document.getElementById('mat_cat').value,
+        unit_price: Number(document.getElementById('mat_price').value)
+      };
+
+      const res = await fetch('/api/materials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok) return alert(data.error || 'Failed to save material');
+      alert(data.message);
+      resetMatForm();
+      loadMaterials();
+    }
+  </script>
+</body>
+</html>

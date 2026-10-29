@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Clinic Appendix Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+  <!-- TOP NAVBAR -->
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="h-9 w-9 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-black text-base shadow">
+          CA
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-slate-800 leading-tight">Clinic Appendix Portal</h1>
+          <p id="userMeta" class="text-[11px] text-slate-500 leading-tight">Manage Healthcare Institutions & PICs</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-6 text-xs font-medium">
+        <a href="/index.html" class="text-blue-600 hover:text-blue-800 font-bold transition">📋 Master List Dashboard</a>
+        <a href="javascript:void(0)" onclick="logout()" class="text-slate-400 hover:text-red-600 transition">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+    <div class="bg-white p-6 rounded-2xl shadow space-y-5">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4">
+        <div>
+          <h3 class="font-bold text-lg text-slate-800">Clinic Appendix List</h3>
+          <p class="text-xs text-slate-500">Add and manage clinics, unique Reference Numbers (REF No), and Persons In Charge (PIC).</p>
+        </div>
+        <button type="button" onclick="openAppendixModal('add')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold shadow transition cursor-pointer">
+          + Add New Clinic to Appendix
+        </button>
+      </div>
+
+      <!-- Appendix Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="border-b bg-slate-50 text-slate-600 uppercase tracking-wider text-[11px]">
+              <th class="p-3">#</th>
+              <th class="p-3">Ref No</th>
+              <th class="p-3">Health Care Institution</th>
+              <th class="p-3">Person In Charge (PIC)</th>
+              <th class="p-3">Region</th>
+              <th class="p-3">NE (Sales Exec)</th>
+              <th class="p-3">Payee Details</th>
+              <th class="p-3">Status</th>
+              <th class="p-3">Action</th>
+            </tr>
+          </thead>
+          <tbody id="appendixTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- ADD / EDIT APPENDIX MODAL -->
+  <div id="appendixModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+    <div class="bg-white max-w-xl w-full rounded-2xl p-6 sm:p-8 my-auto shadow-xl">
+      <div class="flex justify-between items-center border-b pb-3 mb-4">
+        <h3 id="appendixModalTitle" class="font-bold text-lg text-indigo-700">Add Clinic to Appendix</h3>
+        <button type="button" onclick="closeAppendixModal()" class="text-slate-500 hover:text-black font-bold cursor-pointer">✕</button>
+      </div>
+
+      <form id="appendixForm" onsubmit="submitAppendixForm(event)" class="space-y-4 text-xs">
+        <input type="hidden" id="appendix_id" name="id" />
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Ref No (Auto-generated)</label>
+            <input name="ref_no" id="appendix_ref_no" placeholder="APP-202610-xxxx" readonly class="w-full border p-2 rounded bg-slate-100 font-mono text-indigo-600 font-bold" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Ref Type</label>
+            <input name="ref_type" id="appendix_ref_type" value="2026 New" required class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Region (Zone)</label>
+            <select name="region" id="appendix_region" required class="w-full border p-2 rounded bg-white font-medium">
+              <option value="">-- Select Region / Zone --</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">NE (Sales Exec - Tier 4)</label>
+            <select name="ne_name" id="appendix_ne_name" required class="w-full border p-2 rounded bg-white font-medium">
+              <option value="">-- Select Sales Executive --</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Health Care Institution (Clinic Name)</label>
+          <input name="health_care_institution" id="appendix_hci" placeholder="Clinic / Hospital Name" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Person In Charge (PIC)</label>
+          <input name="pic_name" id="appendix_pic_name" placeholder="Dr. Name / PIC" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Payee Details (Business Name & Account)</label>
+          <input name="payee_details" id="appendix_payee" placeholder="Company Name & Bank Details" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Remarks / Status Text</label>
+          <input name="status_text" id="appendix_status" placeholder="Added to Clinic Appendix List..." class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t">
+          <button type="button" onclick="closeAppendixModal()" class="bg-slate-200 px-4 py-2 rounded font-semibold cursor-pointer">Cancel</button>
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded font-semibold cursor-pointer">Save Appendix Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script>
+    let token = sessionStorage.getItem('clinic_token');
+    let currentUser = JSON.parse(sessionStorage.getItem('clinic_user') || '{}');
+    let cachedAppendix = [];
+    let allSystemUsers = [];
+    let allSystemZones = [];
+
+    if (!token) {
+      window.location.href = '/index.html';
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadAppendixTable();
+      loadDropdownMetadata();
+    });
+
+    async function loadDropdownMetadata() {
+      try {
+        // 1. Fetch Zones for Region dropdown
+        const zoneRes = await fetch('/api/metadata/zones-teams', { headers: { Authorization: `Bearer ${token}` } });
+        if (zoneRes.ok) {
+          const meta = await zoneRes.json();
+          allSystemZones = meta.zones || [];
+          const regionSelect = document.getElementById('appendix_region');
+          regionSelect.innerHTML = `<option value="">-- Select Region / Zone --</option>` + 
+            allSystemZones.map(z => `<option value="${z.name}" data-zone-id="${z.id}">${z.name}</option>`).join('');
+        }
+
+        // 2. Fetch all users
+        const userRes = await fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } });
+        if (userRes.ok) {
+          allSystemUsers = await userRes.json();
+        }
+      } catch (e) {
+        console.error('Metadata load error:', e);
+      }
+    }
+
+    // Filter Tier 4 Sales Executives dynamically based on the selected Region/Zone
+    function onRegionChange() {
+      const regionSelect = document.getElementById('appendix_region');
+      const selectedOption = regionSelect.options[regionSelect.selectedIndex];
+      const selectedZoneId = selectedOption.getAttribute('data-zone-id');
+      const neSelect = document.getElementById('appendix_ne_name');
+
+      if (!selectedZoneId) {
+        neSelect.innerHTML = `<option value="">-- Select Region First --</option>`;
+        return;
+      }
+
+      // Filter active Tier 4 users belonging to this zone_id
+      const filteredSales = allSystemUsers.filter(u => 
+        u.role === 'TIER_4' && 
+        u.status === 'ACTIVE' && 
+        Number(u.zone_id) === Number(selectedZoneId)
+      );
+
+      if (filteredSales.length === 0) {
+        neSelect.innerHTML = `<option value="">-- No Sales Exec found in this Zone --</option>`;
+      } else {
+        neSelect.innerHTML = `<option value="">-- Select Sales Executive (Tier 4) --</option>` + 
+          filteredSales.map(u => `<option value="${u.full_name}">${u.full_name} (@${u.username})</option>`).join('');
+      }
+    }
+
+    // Attach onchange listener to region select in DOM
+    document.getElementById('appendix_region').addEventListener('change', onRegionChange);
+
+    async function loadAppendixTable() {
+      try {
+        const res = await fetch('/api/appendix', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        cachedAppendix = await res.json();
+        const tbody = document.getElementById('appendixTableBody');
+
+        if (cachedAppendix.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-400 italic">No clinic appendix records found. Click '+ Add New Clinic to Appendix' above.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = cachedAppendix.map((r, index) => `
+          <tr class="border-b hover:bg-slate-50">
+            <td class="p-3 font-bold">${index + 1}</td>
+            <td class="p-3 font-mono font-bold text-indigo-600">${r.ref_no}</td>
+            <td class="p-3 font-bold text-blue-700">${r.health_care_institution}</td>
+            <td class="p-3 font-semibold text-slate-700">${r.pic_name || '-'}</td>
+            <td class="p-3">${r.region || '-'}</td>
+            <td class="p-3">${r.ne_name || '-'}</td>
+            <td class="p-3">${r.payee_details || '-'}</td>
+            <td class="p-3 text-emerald-700 font-semibold">${r.status_text || '-'}</td>
+            <td class="p-3"><button type="button" onclick="openAppendixModal('edit', ${r.id})" class="bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer">Edit</button></td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        console.error('Error loading appendix table:', e);
+      }
+    }
+
+    function openAppendixModal(mode, id = null) {
+      const modal = document.getElementById('appendixModal');
+      const form = document.getElementById('appendixForm');
+      form.reset();
+      document.getElementById('appendix_id').value = '';
+
+      if (mode === 'edit' && id) {
+        document.getElementById('appendixModalTitle').innerText = 'Edit Clinic Appendix';
+        const r = cachedAppendix.find(x => x.id === id);
+        if (r) {
+          document.getElementById('appendix_id').value = r.id;
+          document.getElementById('appendix_ref_no').value = r.ref_no || '';
+          document.getElementById('appendix_ref_type').value = r.ref_type || '2026 New';
+          document.getElementById('appendix_region').value = r.region || '';
+          
+          // Trigger region change filter to populate NE dropdown correctly when editing
+          onRegionChange();
+          document.getElementById('appendix_ne_name').value = r.ne_name || '';
+          
+          document.getElementById('appendix_hci').value = r.health_care_institution || '';
+          document.getElementById('appendix_pic_name').value = r.pic_name || '';
+          document.getElementById('appendix_payee').value = r.payee_details || '';
+          document.getElementById('appendix_status').value = r.status_text || '';
+        }
+      } else {
+        document.getElementById('appendixModalTitle').innerText = 'Add New Clinic to Appendix';
+        document.getElementById('appendix_ref_no').value = `APP-${new Date().toISOString().slice(0,7).replace('-','')}-${Math.floor(1000 + Math.random() * 9000)}`;
+        document.getElementById('appendix_ne_name').innerHTML = `<option value="">-- Select Region First --</option>`;
+      }
+      modal.classList.remove('hidden');
+    }
+
+    function closeAppendixModal() {
+      document.getElementById('appendixModal').classList.add('hidden');
+    }
+
+    async function submitAppendixForm(e) {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const payload = Object.fromEntries(formData.entries());
+
+      try {
+        const res = await fetch('/api/appendix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) return alert(data.error || 'Failed to save record');
+
+        alert(data.message);
+        closeAppendixModal();
+        loadAppendixTable();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    function logout() {
+      sessionStorage.clear();
+      location.href = '/index.html';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Submit Space Rental Booking Report</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 p-4 sm:p-8">
+
+  <div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header & Navigation -->
+    <div class="flex justify-between items-center bg-white p-5 rounded-2xl shadow">
+      <div>
+        <h2 class="text-xl font-black text-slate-800">New Space Rental Booking Report</h2>
+        <p id="userMetaBadge" class="text-xs text-slate-500 mt-0.5"></p>
+      </div>
+      <a href="/index.html" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl transition cursor-pointer flex items-center gap-1.5">
+        ← Back to Dashboard
+      </a>
+    </div>
+
+    <!-- Main Submission Form Container -->
+    <div class="bg-white p-6 sm:p-8 rounded-2xl shadow space-y-6">
+      <form id="dedicatedReportForm" onsubmit="handleBookingReportSubmit(event)" class="space-y-6 text-xs">
+        
+        <!-- Metadata Header -->
+        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Booking Date</label>
+            <input type="date" id="bf_date" name="booking_date" required class="w-full border p-2 rounded bg-white" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">REF No (Auto)</label>
+            <input type="text" id="bf_ref" name="ref_no" readonly class="w-full border p-2 rounded bg-slate-100 font-mono text-slate-700" />
+          </div>
+        </div>
+
+        <!-- Section 1: Healthcare Institution & Company Details -->
+        <div>
+          <h3 class="font-bold text-sm text-blue-700 uppercase tracking-wider mb-3 pb-2 border-b">1. Healthcare Institution & Company Details</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">1. Name of Healthcare Institution <span class="text-red-500">*</span></label>
+              <input name="clinic_name" id="bf_inst_name" required placeholder="e.g. Sunway Medical Centre Velocity" class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">2. Address of Healthcare Institution <span class="text-red-500">*</span></label>
+              <textarea name="address" id="bf_inst_address" rows="2" required placeholder="Full hospital/clinic address..." class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none"></textarea>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">3. Company Name (As Per Borang 15, APC) <span class="text-red-500">*</span></label>
+                <input name="company_name" id="bf_comp_name" required placeholder="Registered company name" class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">4. Registration Number (As Per Borang 15, APC) <span class="text-red-500">*</span></label>
+                <input name="reg_no" id="bf_reg_no" required placeholder="e.g. 48104/2026" class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+              </div>
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">5. Person In Charge (PIC) <span class="text-red-500">*</span></label>
+              <input name="pic_name" id="bf_pic" required placeholder="e.g. Dr. Emily Tan / Clinic Manager" class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Duration, Material & Rental Fee -->
+        <div>
+          <h3 class="font-bold text-sm text-blue-700 uppercase tracking-wider mb-3 pb-2 border-b">2. Duration, Material & Rental Fee (Appendix 1)</h3>
+          <div class="space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">9. Material Description <span class="text-red-500">*</span></label>
+                <input name="material" id="bf_material_type" value="Poster Small" required class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">10. Space Location <span class="text-red-500">*</span></label>
+                <input name="space" id="bf_space" value="Consultation Suite" required class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Start Date <span class="text-red-500">*</span></label>
+                <input type="date" name="start_date" id="bf_start_date" value="2026-11-01" required class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">End Date <span class="text-red-500">*</span></label>
+                <input type="date" name="end_date" id="bf_end_date" value="2026-12-31" required class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Duration (Months) <span class="text-red-500">*</span></label>
+                <input type="number" id="bf_months" value="2" min="1" required class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Monthly Rate per Unit (RM) <span class="text-red-500">*</span></label>
+                <input type="number" step="0.01" id="bf_monthly_rate" value="500" required class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">7. Total Amount Paid / Agreed (RM) <span class="text-red-500">*</span></label>
+                <input type="number" step="0.01" name="amount_paid" id="bf_total_amount" readonly class="w-full border p-2.5 rounded-lg bg-slate-100 font-bold text-blue-800" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: Rental Fee Payable To & Approving Director -->
+        <div>
+          <h3 class="font-bold text-sm text-blue-700 uppercase tracking-wider mb-3 pb-2 border-b">3. Bank Payee & Approving Director</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">8. Payee Name</label>
+              <input name="payee" id="bf_payee" placeholder="Genesis Adun Sdn Bhd" class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">Bank Name</label>
+              <input name="bank_name" id="bf_bank_name" value="Maybank" class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">Bank Account Number</label>
+              <input name="bank_acc" id="bf_bank_acc" placeholder="Account No." class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <label class="block font-semibold text-slate-600 mb-1">Authorized Tier 1 Director (For Approval Pipeline) <span class="text-red-500">*</span></label>
+            <select name="director_name" id="bf_director_name" required class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none">
+              <option value="">Loading Tier 1 Directors...</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Section 4: Clinic Photo Proof -->
+        <div>
+          <h3 class="font-bold text-sm text-blue-700 uppercase tracking-wider mb-3 pb-2 border-b">4. Mandatory Clinic Photo Proof</h3>
+          <div class="border-2 border-dashed border-slate-300 rounded-xl p-5 bg-slate-50 text-center">
+            <label class="block text-xs text-slate-600 font-semibold mb-2 cursor-pointer">
+              Upload Clinic Placement Photos / Agreement Proof (Required) <span class="text-red-500">*</span>
+            </label>
+            <input type="file" name="photos" required multiple accept="image/*" class="w-full max-w-xs mx-auto border p-1 rounded text-xs bg-white block" />
+            <p class="text-[10px] text-slate-400 mt-2">Upload photographic evidence to pass multi-tier review.</p>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-end space-x-3 pt-4 border-t">
+          <a href="/index.html" class="px-5 py-2.5 rounded-xl font-bold text-xs bg-slate-200 text-slate-700 hover:bg-slate-300 transition">
+            Cancel
+          </a>
+          <button type="submit" id="submitBtn" class="px-6 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition cursor-pointer">
+            Submit Booking Report for Approval
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const token = sessionStorage.getItem('clinic_token');
+    const savedUser = sessionStorage.getItem('clinic_user');
+    if (!token || !savedUser) window.location.href = '/index.html';
+    const currentUser = JSON.parse(savedUser);
+    if (currentUser.role === 'ADMIN') {
+      alert('Admins cannot submit reports.');
+      window.location.href = '/index.html';
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const today = new Date();
+      document.getElementById('bf_date').value = today.toISOString().slice(0, 10);
+      document.getElementById('bf_ref').value = `WIN-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // Calculate initial total
+      calculateTotal();
+      ['bf_monthly_rate', 'bf_qty', 'bf_months'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.addEventListener('input', calculateTotal);
+      });
+
+      // Fetch TIER_1 directors
+      try {
+        const res = await fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const users = await res.json();
+          const directors = users.filter(u => (u.role || '').trim().toUpperCase() === 'TIER_1' && (u.status || '').trim().toUpperCase() === 'ACTIVE');
+          const selectEl = document.getElementById('bf_director_name');
+          if (directors.length > 0) {
+            selectEl.innerHTML = directors.map(d => `<option value="${d.full_name} (Sales Director - T1)">${d.full_name} (Sales Director - T1)</option>`).join('');
+          } else {
+            selectEl.innerHTML = '<option value="David (Sales Director - T1)">David (Sales Director - T1)</option>';
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+
+      document.getElementById('userMetaBadge').innerText = `Logged in as: ${currentUser.full_name} (${currentUser.role})`;
+    });
+
+    function calculateTotal() {
+      const rate = Number(document.getElementById('bf_monthly_rate').value || 0);
+      const months = Number(document.getElementById('bf_months').value || 1);
+      const total = rate * months;
+      document.getElementById('bf_total_amount').value = total.toFixed(2);
+    }
+
+    async function handleBookingReportSubmit(e) {
+      e.preventDefault();
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Submitting Report...';
+
+      try {
+        const form = e.target;
+        const formData = new FormData(form);
+        // Ensure amount_paid is set from calculated total
+        formData.set('amount_paid', document.getElementById('bf_total_amount').value);
+
+        const res = await fetch('/api/reports', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.error || 'Submission failed');
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Submit Booking Report for Approval';
+          return;
+        }
+
+        alert(data.message);
+        window.location.href = '/index.html';
+      } catch (err) {
+        alert('Error: ' + err.message);
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Submit Booking Report for Approval';
+      }
+    }
+  </script>
+</body>
+</html>

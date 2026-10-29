@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Clinic Sales & Approval Portal (Localhost)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @media print {
+      /* Hide the main application screens */
+      #loginScreen, #appScreen, #detailScreen, .no-print {
+        display: none !important;
+      }
+
+      /* Make the modal act as a standard page in print */
+      #invoiceModal {
+        display: block !important;
+        position: static !important;
+        background: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+      }
+
+      #invoiceModal > div {
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+      }
+
+      @page {
+        size: A4 portrait;
+        margin: 10mm 15mm 10mm 15mm;
+      }
+
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+  <!-- LOGIN SCREEN -->
+  <div id="loginScreen" class="max-w-md mx-auto mt-16 bg-white p-8 rounded-xl shadow">
+    <h1 class="text-2xl font-bold mb-2">Clinic Form Portal</h1>
+    <p class="text-sm text-slate-500 mb-6">Localhost Testing Environment</p>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium">Quick Select Demo Account (Password: 123456)</label>
+        <select id="quickUser" onchange="document.getElementById('username').value=this.value" class="w-full border p-2 rounded mt-1 bg-slate-50">
+          <option value="sales1">Tier 4: sales1 (Jason - Salesperson)</option>
+          <option value="sales2">Tier 4: sales2 (Emily - New Salesperson)</option>
+          <option value="leader">Tier 3: leader (Alex - Team Leader)</option>
+          <option value="manager">Tier 2: manager (Sarah - Sales Manager)</option>
+          <option value="director">Tier 1: director (David - Sales Director)</option>
+          <option value="admin">Admin (User Management)</option>
+          <option value="superadmin">Super Admin (All Access + Migration + CSV)</option>
+        </select>
+      </div>
+      <input id="username" value="sales1" placeholder="Username" class="w-full border p-2 rounded" />
+      <input id="password" type="password" value="123456" placeholder="Password" class="w-full border p-2 rounded" />
+      <button type="button" onclick="login()" class="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 cursor-pointer">Login</button>
+    </div>
+  </div>
+
+  <!-- MAIN APP SCREEN -->
+  <div id="appScreen" class="hidden min-h-screen">
+    
+    <!-- TOP NAVBAR (Clean Header with Meta Info & Profile Actions) -->
+     <!-- TOP NAVBAR (Clean Header with Meta Info & Profile Actions) -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        
+        <!-- Brand & Title -->
+        <div class="flex items-center space-x-3">
+          <div class="h-9 w-9 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-base shadow">
+            CP
+          </div>
+          <div>
+            <h1 class="text-base font-bold text-slate-800 leading-tight">Clinic Sales Portal</h1>
+            <p id="userMeta" class="text-[11px] text-slate-500 leading-tight"></p>
+          </div>
+        </div>
+
+        <!-- User Identity & Quick Links -->
+        <div class="flex items-center space-x-6 text-xs font-medium">
+          <a id="navMasterlistLink" href="/masterlist.html" class="text-blue-600 hover:text-blue-800 font-bold transition">
+            📋 Master List Dashboard
+          </a>
+          <a id="navAppendixLink" href="/appendix.html" class="text-indigo-600 hover:text-indigo-800 font-bold transition">
+            📖 Clinic Appendix
+          </a>
+          <a id="navBookingLink" href="/booking.html" class="text-slate-600 hover:text-slate-800 font-semibold transition">
+            + Booking PDF
+          </a>
+
+          <div class="flex items-center space-x-2 pl-4 border-l border-slate-200">
+            <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+            <span id="userGreeting" class="font-bold text-slate-700"></span>
+          </div>
+
+          <a href="javascript:void(0)" onclick="logout()" class="text-slate-400 hover:text-red-600 transition">
+            Logout
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- MAIN FULL-WIDTH CONTAINER (No Left Column) -->
+    <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+      <!-- USER MANAGEMENT & MIGRATION (Only unhidden for Admin & Super Admin) -->
+      <div id="userManagementBox" class="bg-white p-6 rounded-2xl shadow hidden space-y-5">
+        <div class="flex justify-between items-center border-b pb-3">
+          <div>
+            <h3 class="font-bold text-lg text-slate-800">User Management</h3>
+            <p class="text-xs text-slate-500">Manage portal access, roles, and assigned zones/teams.</p>
+          </div>
+          <button type="button" onclick="openUserModal('add')" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">
+            + Add User
+          </button>
+        </div>
+
+        <!-- Super Admin CSV Import Box -->
+        <div id="csvImportSection" class="bg-purple-50 border border-purple-200 p-4 rounded-xl hidden">
+          <h4 class="font-bold text-xs text-purple-800 mb-1">Bulk Import Users (Super Admin Only)</h4>
+          <p class="text-[11px] text-slate-600 mb-2">Upload CSV/Excel with columns: <code>username</code>, <code>full_name</code>, <code>role</code>, <code>zone_id</code>, <code>team_id</code>.</p>
+          <form onsubmit="importUsersCsv(event)" class="flex items-center space-x-2 max-w-md">
+            <input type="file" id="csvFile" accept=".csv, .xlsx" required class="border p-1 rounded text-xs bg-white w-full" />
+            <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-xs font-semibold whitespace-nowrap cursor-pointer">Import</button>
+          </form>
+        </div>
+
+        <!-- Add Zone & Team Quick Forms -->
+        <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+          <h4 class="font-bold text-xs text-slate-700 mb-2">Manage Zones & Teams</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <form onsubmit="addZone(event)" class="flex items-center space-x-2">
+              <input id="newZoneName" placeholder="New Zone Name..." required class="border p-1.5 rounded text-xs bg-white w-full" />
+              <button type="submit" class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-semibold whitespace-nowrap cursor-pointer">+ Zone</button>
+            </form>
+
+            <form onsubmit="addTeam(event)" class="flex items-center space-x-2">
+              <input id="newTeamName" placeholder="New Team Name..." required class="border p-1.5 rounded text-xs bg-white w-full" />
+              <select id="newTeamZoneId" required class="border p-1.5 rounded text-xs bg-white w-full">
+                <option value="">Select Zone...</option>
+              </select>
+              <button type="submit" class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-semibold whitespace-nowrap cursor-pointer">+ Team</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Users List Table -->
+        <div class="overflow-x-auto max-h-72 overflow-y-auto border border-slate-200 rounded-xl">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-100 sticky top-0 text-slate-600">
+              <tr>
+                <th class="p-2.5">User</th>
+                <th class="p-2.5">Role</th>
+                <th class="p-2.5">Status</th>
+                <th class="p-2.5">Action</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody"></tbody>
+          </table>
+        </div>
+
+        <!-- Employee Record Migration Box (Super Admin Only) -->
+        <div id="migrationBox" class="border-t pt-4 hidden">
+          <h4 class="font-bold text-sm text-slate-800 mb-1">Migrate Employee Records</h4>
+          <p class="text-xs text-slate-500 mb-3">Transfer all assigned reports from a departing employee to a replacement employee.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <div>
+              <label class="text-xs font-medium text-slate-600">From Old Employee:</label>
+              <select id="fromUser" class="w-full border p-2 rounded text-xs mt-1 bg-white"></select>
+            </div>
+            <div>
+              <label class="text-xs font-medium text-slate-600">To New Employee:</label>
+              <select id="toUser" class="w-full border p-2 rounded text-xs mt-1 bg-white"></select>
+            </div>
+            <div>
+              <button type="button" onclick="migrateRecords()" class="w-full bg-purple-600 text-white py-2 rounded text-xs font-semibold hover:bg-purple-700 cursor-pointer">
+                Migrate Records
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FULL-WIDTH REPORTS DASHBOARD -->
+      <!-- FULL-WIDTH MASTER LIST DASHBOARD -->
+      <div id="reportDashboardSection" class="bg-white p-6 rounded-2xl shadow space-y-5">
+        
+<!-- Filter Controls -->
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <button type="button" onclick="openMasterModal('add')" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg font-bold shadow-sm transition cursor-pointer">
+              + Create New SR Request
+            </button>
+            <div>
+              <select id="filterZoneMaster" onchange="onMasterZoneFilterChange()" class="border p-2 rounded-lg bg-white">
+                <option value="">All Zones</option>
+              </select>
+            </div>
+            <div>
+              <select id="filterTeamMaster" onchange="loadReports()" class="border p-2 rounded-lg bg-white">
+                <option value="">All Teams</option>
+              </select>
+            </div>
+            <div>
+              <input id="searchInput" oninput="loadReports()" placeholder="Search Clinic, REF, PIC, NE..." class="border p-2 rounded-lg w-48 bg-white" />
+            </div>
+            <div>
+              <button type="button" onclick="resetDashboardFilters()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-2 rounded-lg font-semibold cursor-pointer">
+                Reset
+              </button>
+            </div>
+            <div>
+              <button type="button" onclick="openDocUploadModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg font-bold shadow-sm transition cursor-pointer">
+                📁 Upload Document
+              </button>
+            </div>
+          </div>
+
+        <!-- Master List Table (Unified Dashboard) -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b bg-slate-50 text-slate-600 uppercase tracking-wider text-[11px]">
+                <th class="p-3">SR Ref #</th>
+                <th class="p-3">Zone / Team</th>
+                <th class="p-3">Region / NE</th>
+                <th class="p-3">Health Care Institution</th>
+                <th class="p-3">Payee & Reg No.</th>
+                <th class="p-3">Duration & Dates</th>
+                <th class="p-3">Amount (RM)</th>
+                <th class="p-3">Approval Status</th>
+                <th class="p-3">SR Status</th>
+                <th class="p-3">Detailed Photo Status</th>
+                <th class="p-3">Action</th>
+              </tr>
+            </thead>
+            <tbody id="reportTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- FULL PAGE REF NO SUMMARY SCREEN -->
+  <div id="detailScreen" class="hidden max-w-5xl mx-auto p-6">
+    <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow mb-6">
+      <div class="flex items-center space-x-3">
+        <button type="button" onclick="backToDashboard()" class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer">
+          ← Back to Dashboard
+        </button>
+        <div>
+          <h2 id="pageRefTitle" class="text-xl font-bold text-blue-700"></h2>
+          <p id="pageRefStatus" class="text-xs text-slate-500"></p>
+        </div>
+      </div>
+      <div id="pageActionButtons" class="space-x-2"></div>
+    </div>
+
+    <div class="bg-white p-6 rounded-xl shadow mb-6">
+      <h3 class="font-bold text-lg border-b pb-2 mb-4">Contract & Clinic Summary</h3>
+      <div id="pageSummaryDetails" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm"></div>
+    </div>
+
+    <div class="bg-white p-6 rounded-xl shadow">
+      <div class="flex flex-col md:flex-row justify-between md:items-center border-b pb-4 mb-4 gap-3">
+        <div>
+          <h3 class="font-bold text-lg">Clinic Photos by Duration</h3>
+          <span id="pageDurationHeader" class="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold inline-block mt-1"></span>
+        </div>
+        <div class="flex flex-wrap items-end gap-2 bg-slate-50 p-3 rounded-xl border">
+          <div>
+            <label class="block text-xs text-slate-500 font-medium">From Month</label>
+            <input type="month" id="filterFromMonth" onchange="renderSummaryByMonth()" class="border p-1.5 rounded text-xs bg-white" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 font-medium">To Month</label>
+            <input type="month" id="filterToMonth" onchange="renderSummaryByMonth()" class="border p-1.5 rounded text-xs bg-white" />
+          </div>
+          <button type="button" onclick="resetSummaryMonthFilter()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded text-xs font-semibold cursor-pointer">
+            Reset All
+          </button>
+        </div>
+      </div>
+      <div id="pagePhotosContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+  </div>
+
+  <!-- ADD / EDIT USER MODAL -->
+  <div id="userModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white max-w-md w-full rounded-xl p-6 shadow-xl">
+      <div class="flex justify-between items-center border-b pb-3 mb-4">
+        <h3 id="userModalTitle" class="font-bold text-lg">Add New User</h3>
+        <button type="button" onclick="closeUserModal()" class="text-slate-500 hover:text-black font-bold">✕</button>
+      </div>
+      <form id="userForm" onsubmit="saveUser(event)" class="space-y-3 text-sm">
+        <input type="hidden" id="modal_user_id" />
+        <div>
+          <label class="text-xs text-slate-500">Username (Login ID)</label>
+          <input id="modal_username" required class="w-full border p-2 rounded text-xs" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Full Name</label>
+          <input id="modal_fullname" required class="w-full border p-2 rounded text-xs" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Password (Leave blank when editing to keep current)</label>
+          <input type="password" id="modal_password" class="w-full border p-2 rounded text-xs" placeholder="••••••" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Role</label>
+          <select id="modal_role" onchange="handleRoleChange()" class="w-full border p-2 rounded text-xs bg-white">
+            <option value="TIER_4">Tier 4: Sales</option>
+            <option value="TIER_3">Tier 3: Sales Leader</option>
+            <option value="TIER_2">Tier 2: Sales Manager</option>
+            <option value="TIER_1">Tier 1: Sales Director</option>
+            <option value="ADMIN">Admin</option>
+            <option value="SUPER_ADMIN">Super Admin</option>
+          </select>
+        </div>
+
+        <!-- Zone & Team Container (Dynamically shown/hidden based on role) -->
+        <div id="zoneTeamContainer" class="grid grid-cols-2 gap-2">
+          <div id="zoneFieldWrapper">
+            <label class="text-xs text-slate-500">Zone</label>
+            <select id="modal_zone_id" onchange="filterTeamsByZone()" class="w-full border p-2 rounded text-xs bg-white">
+              <option value="">-- No Zone --</option>
+            </select>
+          </div>
+          <div id="teamFieldWrapper">
+            <label class="text-xs text-slate-500">Team</label>
+            <select id="modal_team_id" class="w-full border p-2 rounded text-xs bg-white">
+              <option value="">-- No Team --</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex space-x-2 pt-2">
+          <button type="button" onclick="closeUserModal()" class="w-1/3 bg-slate-200 py-2 rounded font-semibold text-xs">Cancel</button>
+          <button type="submit" class="w-2/3 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-semibold text-xs">Save User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- EDIT REJECTED REPORT MODAL -->
+  <div id="editModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white max-w-md w-full rounded-xl p-6 shadow-xl">
+      <div class="flex justify-between items-center border-b pb-3 mb-3">
+        <h3 id="editModalTitle" class="font-bold text-lg text-amber-700">Edit Rejected Report</h3>
+        <button type="button" onclick="closeEditModal()" class="text-slate-500 hover:text-black font-bold">✕</button>
+      </div>
+      <div id="editRejectReason" class="bg-red-50 border border-red-200 text-red-700 p-3 rounded text-xs mb-4"></div>
+      <form id="editReportForm" onsubmit="submitEditReportForm(event)" class="space-y-3 text-sm">
+        <input type="hidden" id="edit_report_id" />
+        <div>
+          <label class="text-xs text-slate-500">Clinic Name</label>
+          <input id="edit_clinic_name" name="clinic_name" required class="w-full border p-2 rounded" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Person In Charge (PIC)</label>
+          <input id="edit_pic_name" name="pic_name" required class="w-full border p-2 rounded" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Material Placed</label>
+          <input id="edit_material" name="material" required class="w-full border p-2 rounded" />
+        </div>
+<div class="grid grid-cols-2 gap-3">
+  <div>
+    <label class="block font-semibold text-slate-600 mb-1">Start Date</label>
+    <input type="date" name="start_date" id="start_date" required class="w-full border p-2 rounded bg-slate-50" />
+  </div>
+  <div>
+    <label class="block font-semibold text-slate-600 mb-1">End Date</label>
+    <input type="date" name="end_date" id="end_date" required class="w-full border p-2 rounded bg-slate-50" />
+  </div>
+</div>
+        <div>
+          <label class="text-xs text-slate-500">Amount Paid (RM)</label>
+          <input type="number" step="0.01" id="edit_amount_paid" name="amount_paid" required class="w-full border p-2 rounded" />
+        </div>
+        <div class="border-t pt-2">
+          <label class="block text-xs text-slate-500 mb-1">Upload New Photos (Optional)</label>
+          <input type="file" name="photos" multiple accept="image/*" class="w-full border p-1 rounded text-xs mb-2" />
+          <label class="flex items-center space-x-2 text-xs text-slate-600">
+            <input type="checkbox" id="edit_replace_photos" checked />
+            <span>Replace previous photos if new ones are uploaded</span>
+          </label>
+        </div>
+        <div class="flex space-x-2 pt-2">
+          <button type="button" onclick="closeEditModal()" class="w-1/3 bg-slate-200 py-2 rounded font-semibold">Cancel</button>
+          <button type="submit" class="w-2/3 bg-amber-600 text-white py-2 rounded font-semibold hover:bg-amber-700">Resubmit Report</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- REJECT REASON MODAL -->
+  <div id="rejectModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white max-w-md w-full rounded-xl p-6 shadow-xl">
+      <div class="flex justify-between items-center border-b pb-3 mb-4">
+        <h3 id="rejectModalTitle" class="font-bold text-lg text-red-600">Reject Report</h3>
+        <button type="button" onclick="closeRejectModal()" class="text-slate-500 hover:text-black font-bold">✕</button>
+      </div>
+      <form id="rejectForm" onsubmit="submitRejectForm(event)" class="space-y-4 text-sm">
+        <input type="hidden" id="reject_report_id" />
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Reason / Remark for Salesperson (Required):</label>
+          <textarea id="reject_remarks" rows="3" required placeholder="e.g., Invoice amount doesn't match receipt photo..." class="w-full border p-2 rounded"></textarea>
+        </div>
+        <div class="flex space-x-2">
+          <button type="button" onclick="closeRejectModal()" class="w-1/3 bg-slate-200 py-2 rounded font-semibold">Cancel</button>
+          <button type="submit" class="w-2/3 bg-red-600 text-white py-2 rounded font-semibold hover:bg-red-700">Confirm Reject</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<!-- OFFICIAL SPACE RENTAL BOOKING FORM / INVOICE MODAL -->
+<div id="invoiceModal" onclick="handleInvoiceModalBackdrop(event)" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 overflow-y-auto">
+  <div onclick="event.stopPropagation()" class="bg-white max-w-4xl w-full rounded-2xl shadow-2xl p-6 sm:p-8 my-auto relative">
+    
+    <!-- TOP ACTION BAR (HIDDEN IN PRINT) -->
+    <div class="flex justify-between items-center pb-4 mb-6 border-b border-slate-200 no-print">
+      <div class="flex items-center space-x-2">
+        <span class="bg-emerald-100 text-emerald-700 text-xs px-2.5 py-1 rounded font-bold">Approved Document</span>
+        <h3 class="font-bold text-base sm:text-lg text-slate-800">Space Rental Booking Form & Authorization</h3>
+      </div>
+      <div class="flex items-center space-x-3">
+        <button type="button" onclick="printInvoiceDocument()" class="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-4 py-2 rounded-lg text-xs font-bold cursor-pointer flex items-center gap-2 shadow-sm transition">
+          🖨️ Print / Export PDF
+        </button>
+        <button type="button" onclick="closeInvoiceModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm px-3 py-2 rounded-lg cursor-pointer transition">
+          ✕ Close
+        </button>
+      </div>
+    </div>
+
+    <!-- PRINTABLE BOOKING TEMPLATE AREA -->
+    <div id="invoicePrintArea" style="font-family: Arial, sans-serif; font-size: 11px; color: #000; line-height: 1.4; background: #fff; padding: 10px;">
+      
+      <!-- Company Letterhead -->
+      <table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px;">
+        <tr>
+          <td style="width: 15%; vertical-align: middle; font-size: 28px; font-weight: 900; color: #b45309;">
+            Ga
+          </td>
+          <td style="width: 85%; text-align: right; font-size: 10px; line-height: 1.3;">
+            <b style="font-size: 12px;">GENESIS ADUN SDN BHD</b> <span>Co. No. 200601019832(739585-K)</span><br>
+            No. 31-1, Jalan DU 2/1, Taman Damai Utama, 47180 Puchong, Selangor Darul Ehsan, Malaysia.<br>
+            Tel: +603-8075 1633 &nbsp; Fax: +603-8075 6366 &nbsp; Email: insr@genesisadun.com
+          </td>
+        </tr>
+      </table>
+
+      <p style="font-weight: bold; margin: 0 0 4px 0; text-transform: uppercase;">PRIVATE & CONFIDENTIAL</p>
+      <h2 style="font-size: 13px; font-weight: bold; text-decoration: underline; margin: 0 0 10px 0; text-transform: uppercase;">
+        SPACE RENTAL BOOKING FORM FOR MATERIAL PLACEMENT
+      </h2>
+
+      <table style="width: 100%; margin-bottom: 10px; font-weight: bold; font-size: 11px;">
+        <tr>
+          <td style="width: 60px;">DATE</td>
+          <td>: <span id="invDate"></span></td>
+        </tr>
+        <tr>
+          <td>REF</td>
+          <td>: <span id="invRefNo"></span></td>
+        </tr>
+      </table>
+
+      <p style="margin: 0 0 10px 0; text-align: justify; font-size: 10.5px;">
+        Genesis Adun Sdn. Bhd. is desirous in renting space within the Healthcare Institution on the following terms and conditions in order to display materials on behalf of and belonging to Wyeth Nutrition (Malaysia) Sdn Bhd (provided always that such materials do not violate any laws or regulations, including but not limited to the Code of Ethics For the Marketing of Infant Foods And Related Products).
+      </p>
+
+      <!-- Main 1-10 Numbered Specification Table -->
+      <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 16px; font-size: 10.5px;">
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; width: 6%; text-align: center; font-weight: bold;">1.</td>
+          <td style="border: 1px solid #000; padding: 5px; width: 32%; font-weight: bold;">Name of Healthcare Institution</td>
+          <td style="border: 1px solid #000; padding: 5px; width: 62%; font-weight: bold;" id="invClinicName"></td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">2.</td>
+          <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Address of Healthcare Institution</td>
+          <td style="border: 1px solid #000; padding: 5px; white-space: pre-line;" id="invAddress"></td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">3.</td>
+          <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Company Name<br><span style="font-size: 9px; font-weight: normal;">(As Per Borang 15, APC)</span></td>
+          <td style="border: 1px solid #000; padding: 5px;" id="invCompanyName"></td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">4.</td>
+          <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Registration Number<br><span style="font-size: 9px; font-weight: normal;">(As Per Borang 15, APC)</span></td>
+          <td style="border: 1px solid #000; padding: 5px;" id="invRegNo"></td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">5.</td>
+          <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Person In Charge</td>
+          <td style="border: 1px solid #000; padding: 5px;" id="invPicName"></td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">6.</td>
+          <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Duration</td>
+          <td style="border: 1px solid #000; padding: 5px;">The duration of Space Rental shall be executed as per stipulated in Appendix 1</td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">7.</td>
+          <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Rental Fee</td>
+          <td style="border: 1px solid #000; padding: 5px;" id="invRentalFeeText"></td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">8.</td>
+          <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Rental Fee Payable To</td>
+          <td style="border: 1px solid #000; padding: 0;">
+            <div style="padding: 5px; border-bottom: 1px solid #000;"><b>Payee:</b> <span id="invPayee"></span></div>
+            <div style="padding: 5px;">
+              <b>Bank Account Number:</b> <span id="invBankAcc"></span><br>
+              <b>Bank:</b> <span id="invBankName"></span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">9.</td>
+          <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Material</td>
+          <td style="border: 1px solid #000; padding: 5px;">Refer to Appendix 1</td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">10.</td>
+          <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Space</td>
+          <td style="border: 1px solid #000; padding: 5px; font-weight: bold;" id="invSpace"></td>
+        </tr>
+      </table>
+
+      <!-- APPENDIX TABLE 1 -->
+      <p style="font-weight: bold; text-decoration: underline; margin: 0 0 6px 0;">APPENDIX TABLE 1</p>
+      <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; text-align: center; font-size: 10px; margin-bottom: 18px;">
+        <thead>
+          <tr style="background-color: #f8fafc; font-weight: bold;">
+            <td colspan="2" style="border: 1px solid #000; padding: 4px;">SR Details</td>
+            <td style="border: 1px solid #000; padding: 4px;" id="invMatHeader">Poster Small</td>
+            <td colspan="3" style="border: 1px solid #000; padding: 4px;">Rental Fee (RM)</td>
+          </tr>
+          <tr style="background-color: #f8fafc; font-weight: bold;">
+            <td style="border: 1px solid #000; padding: 4px; width: 16%;">Start Date</td>
+            <td style="border: 1px solid #000; padding: 4px; width: 16%;">End Date</td>
+            <td style="border: 1px solid #000; padding: 4px; width: 16%;" id="invUnitRateHeader">RM 500</td>
+            <td style="border: 1px solid #000; padding: 4px; width: 18%;">Rental (RM)</td>
+            <td style="border: 1px solid #000; padding: 4px; width: 16%;">Duration (months)</td>
+            <td style="border: 1px solid #000; padding: 4px; width: 18%;">Amount (RM)</td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border: 1px solid #000; padding: 6px;" id="invStartDate"></td>
+            <td style="border: 1px solid #000; padding: 6px;" id="invEndDate"></td>
+            <td style="border: 1px solid #000; padding: 6px;">1</td>
+            <td style="border: 1px solid #000; padding: 6px;" id="invMonthlySubtotal"></td>
+            <td style="border: 1px solid #000; padding: 6px;" id="invDurationMonths"></td>
+            <td style="border: 1px solid #000; padding: 6px; font-weight: bold;" id="invGrandTotalCol"></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr style="font-weight: bold;">
+            <td colspan="4" style="border: none;"></td>
+            <td style="border: 1px solid #000; padding: 6px; background-color: #f8fafc;">Total Amount</td>
+            <td style="border: 1px solid #000; padding: 6px; background-color: #f8fafc;" id="invTotalAmountFoot"></td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <!-- Clauses 11 & 12 -->
+      <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 20px; font-size: 10px;">
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; width: 6%; text-align: center; font-weight: bold; vertical-align: top;">11.</td>
+          <td style="border: 1px solid #000; padding: 5px; width: 22%; font-weight: bold; vertical-align: top;">Notification</td>
+          <td style="border: 1px solid #000; padding: 5px; width: 72%; text-align: justify;">
+            <b>11.1</b> Either party may terminate this booking with 14 days' written notice; pro-rated refunds apply if terminated early by the Healthcare Institution.<br><br>
+            <b>11.2</b> Authorized representatives may place, inspect, replace, or retrieve materials during the agreed period, and the institution shall notify Genesis Adun Sdn. Bhd. of any displacement.
+          </td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; vertical-align: top;">12.</td>
+          <td style="border: 1px solid #000; padding: 5px; font-weight: bold; vertical-align: top;">Miscellaneous</td>
+          <td style="border: 1px solid #000; padding: 5px;">
+            Governed by the laws of Malaysia.
+          </td>
+        </tr>
+      </table>
+
+      <!-- Signatures Section -->
+      <table style="width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 10.5px;">
+        <tr>
+          <td style="width: 50%; vertical-align: top; padding-right: 20px;">
+            <p style="margin: 0 0 36px 0;">Yours faithfully,</p>
+            <div style="border-bottom: 1px solid #000; width: 80%; margin-bottom: 6px;"></div>
+            <p style="font-weight: bold; margin: 0;">GENESIS ADUN SDN. BHD.</p>
+            <p style="margin: 2px 0 0 0;">Name: <span id="invSignDirector">David (Sales Director - T1)</span></p>
+            <p style="margin: 2px 0 0 0;">Designation: DIRECTOR</p>
+          </td>
+          <td style="width: 50%; vertical-align: top; padding-left: 20px;">
+            <p style="font-weight: bold; text-decoration: underline; margin: 0 0 4px 0;">ACKNOWLEDGEMENT</p>
+            <p style="margin: 0 0 24px 0; font-size: 10px;">
+              We, <b id="invAckClinic"></b> hereby agree to the above terms and conditions.
+            </p>
+            <div style="border-bottom: 1px solid #000; width: 80%; margin-bottom: 6px;"></div>
+            <p style="margin: 0;">Signed By :</p>
+            <p style="margin: 2px 0 0 0;">For and on Behalf of : <b id="invAckBehalf"></b></p>
+            <p style="margin: 2px 0 0 0;">Name : <span id="invAckPic"></span></p>
+            <p style="margin: 14px 0 0 0;">Company Stamp :</p>
+          </td>
+        </tr>
+      </table>
+
+    </div>
+  </div>
+</div>
+<!-- CREATE / EDIT MASTERLIST SR MODAL -->
+<div id="masterModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+  <div class="bg-white max-w-3xl w-full rounded-2xl p-6 sm:p-8 my-auto shadow-xl">
+    <div class="flex justify-between items-center border-b pb-3 mb-4">
+      <h3 id="modalTitle" class="font-bold text-lg text-blue-700">Create New SR Request in Masterlist</h3>
+      <button type="button" onclick="closeMasterModal()" class="text-slate-500 hover:text-black font-bold cursor-pointer">✕</button>
+    </div>
+
+    <form id="masterForm" onsubmit="submitMasterRecord(event)" class="space-y-4 text-xs">
+      <input type="hidden" id="edit_record_id" />
+      
+      <!-- Appendix Clinic Selector -->
+      <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-3">
+        <label class="block font-bold text-blue-800 mb-1">Select from Clinic Appendix List (Auto-fills Details)</label>
+        <select id="appendixSelector" onchange="populateFromAppendix(this.value)" class="w-full border p-2 rounded bg-white font-medium text-slate-800">
+          <option value="">-- Choose from Clinic Appendix List (or type manually below) --</option>
+        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">SR Ref #</label>
+          <input name="sr_ref_no" id="sr_ref_no" value="SR-2026-NEW" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Region</label>
+          <input name="region" id="region" value="CREC" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">NE (Sales Exec)</label>
+          <input name="ne_name" id="ne_name" placeholder="Sales Executive Name" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Health Care Institution (Premis)</label>
+          <input name="clinic_name" id="clinic_name" placeholder="Clinic / Hospital Name" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Payee Name (Business)</label>
+          <input name="payee_name" id="payee_name" placeholder="Payee Entity Name" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Business Registration No. (Borang 15 / APC)</label>
+          <input name="business_reg_no" id="business_reg_no" placeholder="e.g. 199501012653" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-slate-600 mb-1">HCI Address</label>
+        <textarea name="hci_address" id="hci_address" rows="2" placeholder="Full institution address..." required class="w-full border p-2 rounded bg-slate-50"></textarea>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Payee Bank Name</label>
+          <input name="payee_bank_name" id="payee_bank_name" value="Maybank" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+        <div class="col-span-2">
+          <label class="block font-semibold text-slate-600 mb-1">Payee Account No.</label>
+          <input name="payee_acc_no" id="payee_acc_no" placeholder="Bank Account Number" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Person In Charge (PIC)</label>
+          <input name="pic_name" id="pic_name" placeholder="Dr. Name" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Placement Location</label>
+          <input name="placement_location" id="placement_location" value="Consultation Suite" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Duration (Months)</label>
+          <input type="number" name="period_months" id="period_months" value="3" min="1" oninput="calculateMasterTotal()" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Start Date</label>
+          <input type="date" name="start_date" id="start_date" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">End Date</label>
+          <input type="date" name="end_date" id="end_date" required class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+      </div>
+
+      <!-- Dynamic POSM Materials Selector -->
+      <div class="border p-3 rounded-xl bg-slate-50 space-y-2">
+        <label class="block font-bold text-slate-700">POSM Materials & Quantities (Prices auto-calculated)</label>
+        <div id="materialInputsContainer" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1"></div>
+        <div class="text-right font-bold text-blue-700 pt-2 border-t">
+          Calculated Total Amount: RM <span id="displayTotalAmount">0.00</span>
+          <input type="hidden" name="total_amount" id="total_amount" value="0" />
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-3 border-t">
+        <button type="button" onclick="closeMasterModal()" class="bg-slate-200 px-4 py-2 rounded font-semibold cursor-pointer">Cancel</button>
+        <button type="submit" id="saveMasterBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded font-semibold cursor-pointer">Save Masterlist Record</button>
+      </div>
+    </form>
+  </div>
+</div>
+<!-- UPLOAD SUPPORTING DOCUMENT MODAL -->
+<div id="docUploadModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+  <div class="bg-white max-w-lg w-full rounded-2xl p-6 sm:p-8 my-auto shadow-xl">
+    <div class="flex justify-between items-center border-b pb-3 mb-4">
+      <h3 class="font-bold text-lg text-blue-700">Upload Supporting Document by Photo</h3>
+      <button type="button" onclick="closeDocUploadModal()" class="text-slate-500 hover:text-black font-bold cursor-pointer">✕</button>
+    </div>
+
+    <form onsubmit="submitSupportingDocument(event)" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-slate-600 mb-1">Select Report / Link by REF No</label>
+        <select id="doc_report_id" required class="w-full border p-2 rounded bg-white font-mono font-bold text-blue-600">
+          <option value="">-- Choose Clinic / REF No --</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-slate-600 mb-1">Type of Document</label>
+        <input name="doc_type" placeholder="e.g. Borang 15 (APC), Official Receipt, Agreement" required class="w-full border p-2 rounded bg-slate-50" />
+      </div>
+
+      <div>
+        <label class="block font-semibold text-slate-600 mb-1">Upload Photo (Image / Scan)</label>
+        <input type="file" name="photos" accept="image/*" required class="w-full border p-2 rounded bg-slate-50" />
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-3 border-t">
+        <button type="button" onclick="closeDocUploadModal()" class="bg-slate-200 px-4 py-2 rounded font-semibold cursor-pointer">Cancel</button>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded font-semibold cursor-pointer">Upload Document</button>
+      </div>
+    </form>
+  </div>
+</div>
+<!-- VIEW SUPPORTING DOCUMENTS MODAL -->
+<div id="viewDocsModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+  <div class="bg-white max-w-2xl w-full rounded-2xl p-6 sm:p-8 my-auto shadow-xl">
+    <div class="flex justify-between items-center border-b pb-3 mb-4">
+      <h3 class="font-bold text-lg text-slate-800">Attached Supporting Documents</h3>
+      <button type="button" onclick="closeDocumentsModal()" class="text-slate-500 hover:text-black font-bold cursor-pointer">✕</button>
+    </div>
+
+    <div id="docsModalContent" class="space-y-4 max-h-[60vh] overflow-y-auto p-1">
+      <!-- Dynamic document cards populate here -->
+    </div>
+
+    <div class="flex justify-end pt-4 border-t mt-4">
+      <button type="button" onclick="closeDocumentsModal()" class="bg-slate-200 px-4 py-2 rounded font-semibold cursor-pointer">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUBMIT SIGNED AGREEMENT & POSM PHOTO MODAL -->
+<div id="completionModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+  <div class="bg-white max-w-xl w-full rounded-2xl p-6 sm:p-8 my-auto shadow-xl">
+    <div class="flex justify-between items-center border-b pb-3 mb-4">
+      <h3 class="font-bold text-lg text-blue-700">Submit Signed Agreement & POSM Photo</h3>
+      <button type="button" onclick="closeCompletionModal()" class="text-slate-500 hover:text-black font-bold cursor-pointer">✕</button>
+    </div>
+
+    <form onsubmit="submitCompletionDocs(event)" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-slate-600 mb-1">Select Report / Link by REF No</label>
+        <select id="comp_report_id" required class="w-full border p-2 rounded bg-white font-mono font-bold text-blue-600">
+          <option value="">-- Choose Clinic / REF No --</option>
+        </select>
+      </div>
+
+      <div class="bg-slate-50 border p-3 rounded-xl space-y-3">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">1. Signed Agreement & Booking Form</label>
+          <input type="file" name="photos" accept="image/*" required class="w-full border p-2 rounded bg-white" />
+          <input type="hidden" name="doc_types" value="Signed Agreement / Booking Form" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">2. First Photo of POSM in Place</label>
+          <input type="file" name="photos" accept="image/*" required class="w-full border p-2 rounded bg-white" />
+          <input type="hidden" name="doc_types" value="POSM in Place Photo" />
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-3 border-t">
+        <button type="button" onclick="closeCompletionModal()" class="bg-slate-200 px-4 py-2 rounded font-semibold cursor-pointer">Cancel</button>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded font-semibold cursor-pointer">Upload Both Photos</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- UPLOAD MONTHLY PROOF PHOTO MODAL -->
+<div id="monthlyProofModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+  <div class="bg-white max-w-lg w-full rounded-2xl p-6 sm:p-8 my-auto shadow-xl">
+    <div class="flex justify-between items-center border-b pb-3 mb-4">
+      <h3 class="font-bold text-lg text-blue-700">Upload Monthly Rental Proof Photo</h3>
+      <button type="button" onclick="closeMonthlyProofModal()" class="text-slate-500 hover:text-black font-bold cursor-pointer">✕</button>
+    </div>
+
+    <form onsubmit="submitMonthlyProof(event)" class="space-y-4 text-xs">
+      <div>
+        <label class="block font-semibold text-slate-600 mb-1">Select Report / Link by REF No</label>
+        <select id="proof_report_id" required class="w-full border p-2 rounded bg-white font-mono font-bold text-blue-600">
+          <option value="">-- Choose Clinic / REF No --</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block font-semibold text-slate-600 mb-1">Target Month / Period</label>
+        <input name="target_month" type="month" required class="w-full border p-2 rounded bg-slate-50" />
+      </div>
+
+      <div>
+        <label class="block font-semibold text-slate-600 mb-1">Proof Photo (POSM Inspection / Status Scan)</label>
+        <input type="file" name="photo" accept="image/*" required class="w-full border p-2 rounded bg-slate-50" />
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-3 border-t">
+        <button type="button" onclick="closeMonthlyProofModal()" class="bg-slate-200 px-4 py-2 rounded font-semibold cursor-pointer">Cancel</button>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded font-semibold cursor-pointer">Upload Monthly Proof</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Space Rental Booking Form Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 p-4 sm:p-8">
+
+  <div class="max-w-6xl mx-auto space-y-6">
+    <!-- Top Header Bar -->
+    <div class="flex justify-between items-center bg-white p-5 rounded-2xl shadow">
+      <div>
+        <h2 class="text-xl font-black text-slate-800">Space Rental Booking Form Generator</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Key in healthcare institution & rental details to generate an A4 PDF booking form.</p>
+      </div>
+      <div class="flex items-center space-x-3">
+        <button type="button" onclick="exportBookingPDF()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow transition cursor-pointer">
+          🖨️ Generate & Export PDF
+        </button>
+        <a href="/index.html" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl transition">
+          ← Back to Dashboard
+        </a>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- LEFT: SALES INPUT FORM (5 Cols) -->
+      <div class="lg:col-span-5 bg-white p-6 rounded-2xl shadow space-y-4 text-xs h-fit">
+        <h3 class="font-bold text-sm text-blue-700 uppercase tracking-wider border-b pb-2">Booking Form Details</h3>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Booking Date</label>
+            <input type="date" id="bf_date" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">REF No (Auto-Generated)</label>
+            <input type="text" id="bf_ref" readonly class="w-full border p-2 rounded bg-slate-100 font-mono text-slate-700 cursor-not-allowed" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">1. Name of Healthcare Institution</label>
+          <input type="text" id="bf_inst_name" placeholder="e.g. Sunway Medical Centre Velocity" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">2. Address of Healthcare Institution</label>
+          <textarea id="bf_inst_address" rows="2" placeholder="Full clinic/hospital address..." oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">3. Company Name (Borang 15 / APC)</label>
+            <input type="text" id="bf_comp_name" placeholder="Registered company name" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">4. Registration No (Borang 15 / APC)</label>
+            <input type="text" id="bf_reg_no" placeholder="e.g. 48104/2026" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">5. Person In Charge</label>
+          <input type="text" id="bf_pic" placeholder="e.g. Dr. Tan / Clinic Manager" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Authorized Tier 1 Director</label>
+          <select id="bf_director_name" onchange="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50">
+            <option value="David (Sales Director - T1)">David (Sales Director - T1)</option>
+          </select>
+          <p class="text-[10px] text-slate-400 mt-1">Select the executive director approving this booking.</p>
+        </div>
+
+        <div class="border-t pt-3">
+          <h4 class="font-bold text-sm text-slate-700 mb-2">6, 7 & 9. Duration, Rental Fee & Appendix 1</h4>
+          
+          <div class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Material Type</label>
+                <input type="text" id="bf_material_type" value="Poster Small" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Quantity / Unit</label>
+                <input type="number" id="bf_qty" value="1" min="1" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Start Date</label>
+                <input type="date" id="bf_start_date" value="2026-11-01" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">End Date</label>
+                <input type="date" id="bf_end_date" value="2026-12-31" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Monthly Rate per Unit (RM)</label>
+                <input type="number" step="0.01" id="bf_monthly_rate" value="500" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Duration (Months)</label>
+                <input type="number" id="bf_months" value="2" min="1" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="border-t pt-3">
+          <h4 class="font-bold text-slate-700 mb-2">8. Rental Fee Payable To</h4>
+          <div class="space-y-2">
+            <input type="text" id="bf_payee" placeholder="Payee Name" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+            <div class="grid grid-cols-2 gap-2">
+              <input type="text" id="bf_bank_name" value="Maybank" placeholder="Bank Name" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+              <input type="text" id="bf_bank_acc" placeholder="Bank Account No." oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+            </div>
+          </div>
+        </div>
+
+        <div class="border-t pt-3">
+          <label class="block font-semibold text-slate-600 mb-1">10. Space Location</label>
+          <input type="text" id="bf_space" value="Consultation Suite" oninput="updateBookingPreview()" class="w-full border p-2 rounded bg-slate-50" />
+        </div>
+
+        <div class="border-t pt-4">
+          <button type="button" onclick="submitBookingReport(event)" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl shadow transition cursor-pointer">
+            Submit Booking Report for Approval
+          </button>
+        </div>
+      </div>
+
+      
+
+      <!-- RIGHT: LIVE A4 DOCUMENT PREVIEW (7 Cols) -->
+      <div class="lg:col-span-7 bg-white p-8 rounded-2xl shadow overflow-x-auto">
+        <div id="bookingPrintArea">
+          <!-- Page 1 -->
+          <div style="font-family: Arial, sans-serif; font-size: 11px; color: #000; line-height: 1.4;">
+            
+            <!-- Company Letterhead -->
+            <table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px;">
+              <tr>
+                <td style="width: 15%; vertical-align: middle; font-size: 28px; font-weight: 900; color: #b45309;">
+                  Ga
+                </td>
+                <td style="width: 85%; text-align: right; font-size: 10px; line-height: 1.3;">
+                  <b style="font-size: 12px;">GENESIS ADUN SDN BHD</b> <span>Co. No. 200601019832(739585-K)</span><br>
+                  No. 31-1, Jalan DU 2/1, Taman Damai Utama, 47180 Puchong, Selangor Darul Ehsan, Malaysia.<br>
+                  Tel: +603-8075 1633 &nbsp; Fax: +603-8075 6366 &nbsp; Email: insr@genesisadun.com
+                </td>
+              </tr>
+            </table>
+
+            <p style="font-weight: bold; margin: 0 0 4px 0; text-transform: uppercase;">PRIVATE & CONFIDENTIAL</p>
+            <h2 style="font-size: 13px; font-weight: bold; text-decoration: underline; margin: 0 0 10px 0; text-transform: uppercase;">
+              SPACE RENTAL BOOKING FORM FOR MATERIAL PLACEMENT
+            </h2>
+
+            <table style="width: 100%; margin-bottom: 10px; font-weight: bold; font-size: 11px;">
+              <tr>
+                <td style="width: 60px;">DATE</td>
+                <td>: <span id="pv_date"></span></td>
+              </tr>
+              <tr>
+                <td>REF</td>
+                <td>: <span id="pv_ref"></span></td>
+              </tr>
+            </table>
+
+            <p style="margin: 0 0 10px 0; text-align: justify; font-size: 10.5px;">
+              Genesis Adun Sdn. Bhd. requests space rental within the Healthcare Institution under the following terms to display materials on behalf of Wyeth Nutrition (Malaysia) Sdn Bhd, subject to applicable regulatory and ethical marketing standards.
+            </p>
+
+            <!-- Main 1-10 Numbered Specification Table -->
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 16px; font-size: 10.5px;">
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; width: 6%; text-align: center; font-weight: bold;">1.</td>
+                <td style="border: 1px solid #000; padding: 5px; width: 32%; font-weight: bold;">Name of Healthcare Institution</td>
+                <td style="border: 1px solid #000; padding: 5px; width: 62%; font-weight: bold;" id="pv_inst_name"></td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">2.</td>
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Address of Healthcare Institution</td>
+                <td style="border: 1px solid #000; padding: 5px; white-space: pre-line;" id="pv_inst_address"></td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">3.</td>
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Company Name<br><span style="font-size: 9px; font-weight: normal;">(As Per Borang 15, APC)</span></td>
+                <td style="border: 1px solid #000; padding: 5px;" id="pv_comp_name"></td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">4.</td>
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Registration Number<br><span style="font-size: 9px; font-weight: normal;">(As Per Borang 15, APC)</span></td>
+                <td style="border: 1px solid #000; padding: 5px;" id="pv_reg_no"></td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">5.</td>
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Person In Charge</td>
+                <td style="border: 1px solid #000; padding: 5px;" id="pv_pic"></td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">6.</td>
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Duration</td>
+                <td style="border: 1px solid #000; padding: 5px;">The duration of Space Rental shall be executed as per stipulated in Appendix 1</td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">7.</td>
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Rental Fee</td>
+                <td style="border: 1px solid #000; padding: 5px;" id="pv_fee_words">
+                  The agreed fee payable on a lump sum basis for provision of the space shall be...
+                </td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">8.</td>
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Rental Fee Payable To</td>
+                <td style="border: 1px solid #000; padding: 0;">
+                  <div style="padding: 5px; border-bottom: 1px solid #000;"><b>Payee:</b> <span id="pv_payee"></span></div>
+                  <div style="padding: 5px;">
+                    <b>Bank Account Number:</b> <span id="pv_bank_acc"></span><br>
+                    <b>Bank:</b> <span id="pv_bank_name"></span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">9.</td>
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Material</td>
+                <td style="border: 1px solid #000; padding: 5px;">Refer to Appendix 1</td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">10.</td>
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold;">Space</td>
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold;" id="pv_space"></td>
+              </tr>
+            </table>
+
+            <!-- APPENDIX TABLE 1 -->
+            <p style="font-weight: bold; text-decoration: underline; margin: 0 0 6px 0;">APPENDIX TABLE 1</p>
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; text-align: center; font-size: 10px; margin-bottom: 18px;">
+              <thead>
+                <tr style="background-color: #f8fafc; font-weight: bold;">
+                  <td colspan="2" style="border: 1px solid #000; padding: 4px;">SR Details</td>
+                  <td style="border: 1px solid #000; padding: 4px;" id="pv_mat_header">Poster Small</td>
+                  <td colspan="3" style="border: 1px solid #000; padding: 4px;">Rental Fee (RM)</td>
+                </tr>
+                <tr style="background-color: #f8fafc; font-weight: bold;">
+                  <td style="border: 1px solid #000; padding: 4px; width: 16%;">Start Date</td>
+                  <td style="border: 1px solid #000; padding: 4px; width: 16%;">End Date</td>
+                  <td style="border: 1px solid #000; padding: 4px; width: 16%;" id="pv_unit_rate_header">RM 500</td>
+                  <td style="border: 1px solid #000; padding: 4px; width: 18%;">Rental (RM)</td>
+                  <td style="border: 1px solid #000; padding: 4px; width: 16%;">Duration (months)</td>
+                  <td style="border: 1px solid #000; padding: 4px; width: 18%;">Amount (RM)</td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="border: 1px solid #000; padding: 6px;" id="pv_start"></td>
+                  <td style="border: 1px solid #000; padding: 6px;" id="pv_end"></td>
+                  <td style="border: 1px solid #000; padding: 6px;" id="pv_qty"></td>
+                  <td style="border: 1px solid #000; padding: 6px;" id="pv_rental_rate"></td>
+                  <td style="border: 1px solid #000; padding: 6px;" id="pv_months"></td>
+                  <td style="border: 1px solid #000; padding: 6px; font-weight: bold;" id="pv_amount"></td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr style="font-weight: bold;">
+                  <td colspan="4" style="border: none;"></td>
+                  <td style="border: 1px solid #000; padding: 6px; background-color: #f8fafc;">Total Amount</td>
+                  <td style="border: 1px solid #000; padding: 6px; background-color: #f8fafc;" id="pv_total_amount"></td>
+                </tr>
+              </tfoot>
+            </table>
+
+            <!-- Clauses 11 & 12 -->
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 20px; font-size: 10px;">
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; width: 6%; text-align: center; font-weight: bold; vertical-align: top;">11.</td>
+                <td style="border: 1px solid #000; padding: 5px; width: 22%; font-weight: bold; vertical-align: top;">Notification</td>
+                <td style="border: 1px solid #000; padding: 5px; width: 72%; text-align: justify;">
+                  <b>11.1</b> Either party may terminate this booking with 14 days' written notice; pro-rated refunds apply if terminated early by the Healthcare Institution.<br><br>
+                  <b>11.2</b> Authorized representatives may place, inspect, replace, or retrieve materials during the agreed period, and the institution shall notify Genesis Adun Sdn. Bhd. of any displacement.
+                </td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; vertical-align: top;">12.</td>
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold; vertical-align: top;">Miscellaneous</td>
+                <td style="border: 1px solid #000; padding: 5px;">
+                  Governed by the laws of Malaysia.
+                </td>
+              </tr>
+            </table>
+
+            <!-- Signatures Section -->
+            <table style="width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 10.5px;">
+              <tr>
+                <td style="width: 50%; vertical-align: top; padding-right: 20px;">
+                  <p style="margin: 0 0 36px 0;">Yours faithfully,</p>
+                  <div style="border-bottom: 1px solid #000; width: 80%; margin-bottom: 6px;"></div>
+                  <p style="font-weight: bold; margin: 0;">GENESIS ADUN SDN. BHD.</p>
+                  <p style="margin: 2px 0 0 0;">Name: <span id="pv_director_name">CHAU MEI LING</span></p>
+                  <p style="margin: 2px 0 0 0;">Designation: DIRECTOR</p>
+                </td>
+                <td style="width: 50%; vertical-align: top; padding-left: 20px;">
+                  <p style="font-weight: bold; text-decoration: underline; margin: 0 0 4px 0;">ACKNOWLEDGEMENT</p>
+                  <p style="margin: 0 0 24px 0; font-size: 10px;">
+                    We, <b id="pv_ack_clinic"></b> hereby agree to the above terms and conditions.
+                  </p>
+                  <div style="border-bottom: 1px solid #000; width: 80%; margin-bottom: 6px;"></div>
+                  <p style="margin: 0;">Signed By :</p>
+                  <p style="margin: 2px 0 0 0;">For and on Behalf of : <b id="pv_ack_behalf"></b></p>
+                  <p style="margin: 2px 0 0 0;">Name : <span id="pv_ack_pic"></span></p>
+                  <p style="margin: 14px 0 0 0;">Company Stamp :</p>
+                </td>
+              </tr>
+            </table>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/booking.js"></script>
+</body>
+</html>
