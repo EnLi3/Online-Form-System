@@ -869,14 +869,17 @@
     <form onsubmit="submitMonthlyProof(event)" class="space-y-4 text-xs">
       <div>
         <label class="block font-semibold text-slate-600 mb-1">Select Report / Link by REF No</label>
-        <select id="proof_report_id" required class="w-full border p-2 rounded bg-white font-mono font-bold text-blue-600">
+        <select id="proof_report_id" onchange="populateMissingMonthsForReport()" required class="w-full border p-2 rounded bg-white font-mono font-bold text-blue-600">
           <option value="">-- Choose Clinic / REF No --</option>
         </select>
       </div>
 
       <div>
-        <label class="block font-semibold text-slate-600 mb-1">Target Month / Period</label>
-        <input name="target_month" type="month" required class="w-full border p-2 rounded bg-slate-50" />
+        <label class="block font-semibold text-slate-600 mb-1">Target Month / Period (Missing Duration)</label>
+        <select id="proof_target_month" name="target_month" required class="w-full border p-2 rounded bg-slate-50 font-semibold text-slate-800">
+          <option value="">-- Select Missing Month / Period --</option>
+        </select>
+        <p id="proof_month_hint" class="text-[11px] text-slate-500 mt-1"></p>
       </div>
 
       <div>

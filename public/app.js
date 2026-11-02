@@ -249,46 +249,12 @@ function formatStatus(status) {
   }
 }
 
-async function openCompletionModalPreSelected(refNo, reportId = null) {
-  await openCompletionModal();
-  const selectEl = document.getElementById('comp_report_id');
-  if (selectEl) {
-    if (reportId !== null) {
-      for (let opt of selectEl.options) {
-        if (String(opt.value) === String(reportId)) {
-          selectEl.value = opt.value;
-          return;
-        }
-      }
-    }
-    for (let opt of selectEl.options) {
-      if (opt.text.includes(refNo)) {
-        selectEl.value = opt.value;
-        break;
-      }
-    }
-  }
+async function openCompletionModalPreSelected(refNo, reportId = null, masterId = null) {
+  await openCompletionModal(reportId, masterId, refNo);
 }
 
-async function openMonthlyProofModalPreSelected(refNo, reportId = null) {
-  await openMonthlyProofModal();
-  const selectEl = document.getElementById('proof_report_id');
-  if (selectEl) {
-    if (reportId !== null) {
-      for (let opt of selectEl.options) {
-        if (String(opt.value) === String(reportId)) {
-          selectEl.value = opt.value;
-          return;
-        }
-      }
-    }
-    for (let opt of selectEl.options) {
-      if (opt.text.includes(refNo)) {
-        selectEl.value = opt.value;
-        break;
-      }
-    }
-  }
+async function openMonthlyProofModalPreSelected(refNo, reportId = null, masterId = null) {
+  await openMonthlyProofModal(reportId, masterId, refNo);
 }
 
 // Populate Zone and Team filter dropdowns on dashboard load
@@ -470,7 +436,7 @@ async function loadReports() {
         if (!hasSignedAgreement || !hasInitialPosmPhoto) {
           actionButtonsHtml += `
             <div>
-              <button type="button" onclick="openCompletionModalPreSelected('${r.sr_ref_no}', ${targetId})" class="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer w-full">
+              <button type="button" onclick="openCompletionModalPreSelected('${r.sr_ref_no}', ${targetId}, ${r.id})" class="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer w-full">
                 📸 Submit Agreement & POSM
               </button>
             </div>
@@ -478,7 +444,7 @@ async function loadReports() {
         } else {
           actionButtonsHtml += `
             <div>
-              <button type="button" onclick="openMonthlyProofModalPreSelected('${r.sr_ref_no}', ${targetId})" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer w-full">
+              <button type="button" onclick="openMonthlyProofModalPreSelected('${r.sr_ref_no}', ${targetId}, ${r.id})" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer w-full">
                 📅 Upload Monthly Proof
               </button>
             </div>
@@ -1535,7 +1501,7 @@ async function submitSupportingDocument(e) {
   }
 }
 
-async function openCompletionModal() {
+async function openCompletionModal(preselectReportId = null, preselectMasterId = null, preselectRefNo = null) {
   const modal = document.getElementById('completionModal');
   const selectEl = document.getElementById('comp_report_id');
   
@@ -1543,8 +1509,39 @@ async function openCompletionModal() {
     const res = await fetch('/api/masterlist', { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) {
       const records = await res.json();
+      cachedReports = records;
       selectEl.innerHTML = `<option value="">-- Choose Clinic / REF No --</option>` + 
-        records.map(r => `<option value="${r.report_id || r.id}">${r.sr_ref_no} - ${r.clinic_name}</option>`).join('');
+        records.map(r => `<option value="${r.report_id || r.id}" data-master-id="${r.id}" data-ref="${r.sr_ref_no}">${r.sr_ref_no} - ${r.clinic_name} (${r.start_date || '-'} to ${r.end_date || '-'})</option>`).join('');
+
+      if (preselectMasterId !== null || preselectReportId !== null || preselectRefNo !== null) {
+        let matched = false;
+        if (preselectMasterId !== null) {
+          for (let i = 0; i < selectEl.options.length; i++) {
+            if (selectEl.options[i].getAttribute('data-master-id') === String(preselectMasterId)) {
+              selectEl.selectedIndex = i;
+              matched = true;
+              break;
+            }
+          }
+        }
+        if (!matched && preselectReportId !== null) {
+          for (let i = 0; i < selectEl.options.length; i++) {
+            if (String(selectEl.options[i].value) === String(preselectReportId)) {
+              selectEl.selectedIndex = i;
+              matched = true;
+              break;
+            }
+          }
+        }
+        if (!matched && preselectRefNo) {
+          for (let i = 0; i < selectEl.options.length; i++) {
+            if (selectEl.options[i].getAttribute('data-ref') === String(preselectRefNo)) {
+              selectEl.selectedIndex = i;
+              break;
+            }
+          }
+        }
+      }
     }
   } catch (e) {
     console.error(e);
@@ -1582,7 +1579,7 @@ async function submitCompletionDocs(e) {
   }
 }
 
-async function openMonthlyProofModal() {
+async function openMonthlyProofModal(preselectReportId = null, preselectMasterId = null, preselectRefNo = null) {
   const modal = document.getElementById('monthlyProofModal');
   const selectEl = document.getElementById('proof_report_id');
   
@@ -1590,14 +1587,148 @@ async function openMonthlyProofModal() {
     const res = await fetch('/api/masterlist', { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) {
       const records = await res.json();
+      cachedReports = records;
       selectEl.innerHTML = `<option value="">-- Choose Clinic / REF No --</option>` + 
-        records.map(r => `<option value="${r.report_id || r.id}">${r.sr_ref_no} - ${r.clinic_name}</option>`).join('');
+        records.map(r => `<option value="${r.report_id || r.id}" data-master-id="${r.id}" data-ref="${r.sr_ref_no}">${r.sr_ref_no} - ${r.clinic_name} (${r.start_date || '-'} to ${r.end_date || '-'})</option>`).join('');
+
+      if (preselectMasterId !== null || preselectReportId !== null || preselectRefNo !== null) {
+        let matched = false;
+        if (preselectMasterId !== null) {
+          for (let i = 0; i < selectEl.options.length; i++) {
+            if (selectEl.options[i].getAttribute('data-master-id') === String(preselectMasterId)) {
+              selectEl.selectedIndex = i;
+              matched = true;
+              break;
+            }
+          }
+        }
+        if (!matched && preselectReportId !== null) {
+          for (let i = 0; i < selectEl.options.length; i++) {
+            if (String(selectEl.options[i].value) === String(preselectReportId)) {
+              selectEl.selectedIndex = i;
+              matched = true;
+              break;
+            }
+          }
+        }
+        if (!matched && preselectRefNo) {
+          for (let i = 0; i < selectEl.options.length; i++) {
+            if (selectEl.options[i].getAttribute('data-ref') === String(preselectRefNo)) {
+              selectEl.selectedIndex = i;
+              break;
+            }
+          }
+        }
+      }
+
+      populateMissingMonthsForReport();
     }
   } catch (e) {
     console.error(e);
   }
 
   if (modal) modal.classList.remove('hidden');
+}
+
+function populateMissingMonthsForReport() {
+  const selectEl = document.getElementById('proof_report_id');
+  const monthSelect = document.getElementById('proof_target_month');
+  const hintEl = document.getElementById('proof_month_hint');
+  if (!selectEl || !monthSelect) return;
+
+  const selectedOpt = selectEl.selectedIndex >= 0 ? selectEl.options[selectEl.selectedIndex] : null;
+  const masterId = selectedOpt ? selectedOpt.getAttribute('data-master-id') : null;
+  const reportId = selectEl.value;
+
+  if (!reportId) {
+    monthSelect.innerHTML = `<option value="">-- Select Report First --</option>`;
+    if (hintEl) hintEl.innerText = '';
+    return;
+  }
+
+  const record = cachedReports.find(r => 
+    (masterId && String(r.id) === String(masterId)) ||
+    String(r.report_id || r.id) === String(reportId)
+  );
+
+  if (!record) {
+    monthSelect.innerHTML = `<option value="">-- Select Missing Month / Period --</option>`;
+    if (hintEl) hintEl.innerText = '';
+    return;
+  }
+
+  const photos = record.photos || [];
+  const start = record.start_date ? new Date(record.start_date) : new Date();
+  const end = record.end_date ? new Date(record.end_date) : new Date();
+
+  const startMonthDate = new Date(start.getFullYear(), start.getMonth(), 1);
+  const endMonthDate = new Date(end.getFullYear(), end.getMonth(), 1);
+
+  const calendarSpanMonths = Math.max(
+    1,
+    (endMonthDate.getFullYear() - startMonthDate.getFullYear()) * 12 +
+      (endMonthDate.getMonth() - startMonthDate.getMonth()) + 1
+  );
+  const totalMonths = Math.max(calendarSpanMonths, Number(record.period_months || 1));
+
+  const missingMonths = [];
+  const uploadedMonths = [];
+
+  for (let i = 0; i < totalMonths; i++) {
+    const d = new Date(startMonthDate.getFullYear(), startMonthDate.getMonth() + i, 1);
+    const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+
+    const isUploaded = photos.some(p =>
+      (p.doc_type || '').includes(mStr) || (p.photo_date || '').includes(mStr)
+    );
+
+    const item = {
+      index: i + 1,
+      total: totalMonths,
+      mStr,
+      label
+    };
+
+    if (isUploaded) {
+      uploadedMonths.push(item);
+    } else {
+      missingMonths.push(item);
+    }
+  }
+
+  let html = '';
+  if (missingMonths.length > 0) {
+    html += `<optgroup label="⚠️ Missing Monthly Proofs (${missingMonths.length} missing)">`;
+    html += missingMonths.map(m =>
+      `<option value="${m.mStr}">Month ${m.index} of ${m.total}: ${m.label} (${m.mStr}) — ⚠️ Missing</option>`
+    ).join('');
+    html += `</optgroup>`;
+  }
+
+  if (uploadedMonths.length > 0) {
+    html += `<optgroup label="✅ Already Uploaded (${uploadedMonths.length} completed)">`;
+    html += uploadedMonths.map(m =>
+      `<option value="${m.mStr}">Month ${m.index} of ${m.total}: ${m.label} (${m.mStr}) — ✅ Uploaded</option>`
+    ).join('');
+    html += `</optgroup>`;
+  }
+
+  monthSelect.innerHTML = html || `<option value="">-- No contract months found --</option>`;
+
+  if (missingMonths.length > 0) {
+    monthSelect.value = missingMonths[0].mStr;
+    if (hintEl) {
+      hintEl.className = 'text-[11px] text-amber-700 font-semibold mt-1';
+      hintEl.innerText = `⚠️ ${missingMonths.length} of ${totalMonths} month(s) missing proof photo (${record.start_date} to ${record.end_date}).`;
+    }
+  } else if (uploadedMonths.length > 0) {
+    monthSelect.value = uploadedMonths[0].mStr;
+    if (hintEl) {
+      hintEl.className = 'text-[11px] text-emerald-700 font-semibold mt-1';
+      hintEl.innerText = `✅ All ${totalMonths} month(s) have proof photos uploaded (${record.start_date} to ${record.end_date}).`;
+    }
+  }
 }
 
 function closeMonthlyProofModal() {

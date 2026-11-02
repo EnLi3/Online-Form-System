@@ -995,8 +995,16 @@ app.post('/api/appendix', auth, (req, res) => {
 // ==========================================
 app.post('/api/reports/:id/completion-docs', auth, upload.array('photos', 5), async (req, res) => {
   try {
-    const reportId = req.params.id;
-    const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(reportId);
+    const targetId = req.params.id;
+    let report = db.prepare('SELECT * FROM reports WHERE id = ?').get(targetId);
+    if (!report) {
+      const mlRow = db.prepare('SELECT id, sr_ref_no, report_id FROM masterlist_requests WHERE id = ?').get(targetId);
+      if (mlRow && mlRow.report_id) {
+        report = db.prepare('SELECT * FROM reports WHERE id = ?').get(mlRow.report_id);
+      } else if (mlRow && mlRow.sr_ref_no) {
+        report = db.prepare('SELECT * FROM reports WHERE ref_no = ? ORDER BY id DESC LIMIT 1').get(mlRow.sr_ref_no);
+      }
+    }
     if (!report) return res.status(404).json({ error: 'Report not found' });
 
     const docTypes = req.body.doc_types || req.body.doc_type || ['Signed Agreement / Booking Form', 'POSM in Place Photo'];
@@ -1021,7 +1029,7 @@ app.post('/api/reports/:id/completion-docs', auth, upload.array('photos', 5), as
         db.prepare(`
           INSERT INTO report_photos (report_id, file_path, photo_date, doc_type, original_size_kb, compressed_size_kb)
           VALUES (?, ?, ?, ?, ?, ?)
-        `).run(reportId, `/uploads/${filename}`, report.start_date, currentDocType, originalSizeKb, compressedSizeKb);
+        `).run(report.id, `/uploads/${filename}`, report.start_date, currentDocType, originalSizeKb, compressedSizeKb);
       }
     }
 
@@ -1037,8 +1045,16 @@ app.post('/api/reports/:id/completion-docs', auth, upload.array('photos', 5), as
 // ==========================================
 app.post('/api/reports/:id/monthly-proof', auth, upload.single('photo'), async (req, res) => {
   try {
-    const reportId = req.params.id;
-    const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(reportId);
+    const targetId = req.params.id;
+    let report = db.prepare('SELECT * FROM reports WHERE id = ?').get(targetId);
+    if (!report) {
+      const mlRow = db.prepare('SELECT id, sr_ref_no, report_id FROM masterlist_requests WHERE id = ?').get(targetId);
+      if (mlRow && mlRow.report_id) {
+        report = db.prepare('SELECT * FROM reports WHERE id = ?').get(mlRow.report_id);
+      } else if (mlRow && mlRow.sr_ref_no) {
+        report = db.prepare('SELECT * FROM reports WHERE ref_no = ? ORDER BY id DESC LIMIT 1').get(mlRow.sr_ref_no);
+      }
+    }
     if (!report) return res.status(404).json({ error: 'Report not found' });
 
     const { target_month } = req.body; // e.g., "2026-06" or "Month 1 (June 2026)"
@@ -1059,7 +1075,7 @@ app.post('/api/reports/:id/monthly-proof', auth, upload.single('photo'), async (
     db.prepare(`
       INSERT INTO report_photos (report_id, file_path, photo_date, doc_type, original_size_kb, compressed_size_kb)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(reportId, `/uploads/${filename}`, target_month, `Monthly Proof: ${target_month}`, originalSizeKb, compressedSizeKb);
+    `).run(report.id, `/uploads/${filename}`, target_month, `Monthly Proof: ${target_month}`, originalSizeKb, compressedSizeKb);
 
     res.json({ message: `Proof photo for month ${target_month} uploaded successfully for ${report.ref_no}!` });
   } catch (err) {
