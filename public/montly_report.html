@@ -49,13 +49,23 @@
     async function loadSingleClinicReport() {
       const params = new URLSearchParams(window.location.search);
       const targetRef = params.get('ref');
+      const targetId = params.get('id');
 
       try {
         const res = await fetch('/api/masterlist', { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) return;
         const records = await res.json();
 
-        const record = records.find(r => r.sr_ref_no === targetRef) || records[0];
+        let record = null;
+        if (targetId) {
+          record = records.find(r => String(r.id) === String(targetId) || String(r.report_id) === String(targetId));
+        }
+        if (!record && targetRef) {
+          record = records.find(r => r.sr_ref_no === targetRef);
+        }
+        if (!record && !targetRef && !targetId) {
+          record = records[0];
+        }
         const container = document.getElementById('reportSlideView');
 
         if (!record) {

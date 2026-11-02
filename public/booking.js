@@ -42,6 +42,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Failed to load directors:', err);
   }
 
+  // If ?id= is present in URL, load existing report data into the form
+  const params = new URLSearchParams(window.location.search);
+  const reportId = params.get('id');
+  if (reportId) {
+    try {
+      const repRes = await fetch(`/api/reports/${reportId}/invoice-data`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (repRes.ok) {
+        const rep = await repRes.json();
+        if (rep.ref_no) document.getElementById('bf_ref').value = rep.ref_no;
+        if (rep.clinic_name) document.getElementById('bf_inst_name').value = rep.clinic_name;
+        if (rep.address) document.getElementById('bf_inst_address').value = rep.address;
+        if (rep.company_name) document.getElementById('bf_comp_name').value = rep.company_name;
+        if (rep.reg_no) document.getElementById('bf_reg_no').value = rep.reg_no;
+        if (rep.pic_name) document.getElementById('bf_pic').value = rep.pic_name;
+        if (rep.material) document.getElementById('bf_material_type').value = rep.material;
+        if (rep.space) document.getElementById('bf_space').value = rep.space;
+        if (rep.start_date) document.getElementById('bf_start_date').value = rep.start_date;
+        if (rep.end_date) document.getElementById('bf_end_date').value = rep.end_date;
+        if (rep.payee) document.getElementById('bf_payee').value = rep.payee;
+        if (rep.bank_name) document.getElementById('bf_bank_name').value = rep.bank_name;
+        if (rep.bank_acc) document.getElementById('bf_bank_acc').value = rep.bank_acc;
+        if (rep.amount_paid) {
+          const months = Number(document.getElementById('bf_months').value || 1);
+          document.getElementById('bf_monthly_rate').value = (Number(rep.amount_paid) / months).toFixed(2);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to prefill booking form:', err);
+    }
+  }
+
   updateBookingPreview();
 });
 
@@ -218,27 +251,4 @@ function exportBookingPDF() {
     printFrame.contentWindow.focus();
     printFrame.contentWindow.print();
   }, 250);
-
-
-  document.addEventListener('DOMContentLoaded', async () => {
-  const today = new Date().toISOString().slice(0, 10);
-  document.getElementById('bf_date').value = today;
-
-  // Fetch Tier 1 Directors for the dropdown
-  try {
-    const res = await fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) {
-      const users = await res.json();
-      const directors = users.filter(u => u.role === 'TIER_1' && u.status === 'ACTIVE');
-      const selectEl = document.getElementById('bf_director_name');
-      if (directors.length > 0) {
-        selectEl.innerHTML = directors.map(d => `<option value="${d.full_name} (Sales Director - T1)">${d.full_name} (Sales Director - T1)</option>`).join('');
-      }
-    }
-  } catch (err) {
-    console.error('Failed to load directors:', err);
-  }
-
-  updateBookingPreview();
-});
 }

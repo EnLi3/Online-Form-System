@@ -15,9 +15,6 @@
         <p id="userRoleBadge" class="text-xs text-slate-500 mt-0.5"></p>
       </div>
       <div class="flex items-center space-x-3">
-        <button id="addMasterBtn" onclick="openMasterModal('add')" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition cursor-pointer">
-          + Create New SR Request
-        </button>
         <button id="manageMaterialsBtn" onclick="openMaterialModal()" class="hidden bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition cursor-pointer">
           ⚙️ Manage Material Prices
         </button>
@@ -44,6 +41,7 @@
             <th class="p-3">Bank Details</th>
             <th class="p-3">Duration & Dates</th>
             <th class="p-3">Materials & Total (RM)</th>
+            <th class="p-3">Approval Status</th>
             <th class="p-3" id="actionHeaderCol">Action</th>
           </tr>
         </thead>
@@ -189,15 +187,10 @@
         <table class="w-full text-left text-xs">
           <thead>
           <tr class="border-b bg-slate-50 text-slate-600 uppercase tracking-wider text-[11px]">
-            <th class="p-3">SR Ref #</th>
-            <th class="p-3">Region / NE</th>
-            <th class="p-3">Health Care Institution</th>
-            <th class="p-3">Payee & Reg No.</th>
-            <th class="p-3">Bank Details</th>
-            <th class="p-3">Duration & Dates</th>
-            <th class="p-3">Materials & Total (RM)</th>
-            <th class="p-3">Approval Status</th>
-            <th class="p-3">Action</th>
+            <th class="p-2.5">Material Name</th>
+            <th class="p-2.5">Category / Size</th>
+            <th class="p-2.5">Unit Price (RM)</th>
+            <th class="p-2.5">Action</th>
           </tr>
         </thead>
           <tbody id="materialTableBody"></tbody>
@@ -215,12 +208,15 @@
     let globalMaterials = [];
     let cachedMasterRecords = [];
 
+    const isTier3OrAbove = ['TIER_3', 'TIER_2', 'TIER_1', 'SUPER_ADMIN'].includes((currentUser.role || '').trim());
+
     document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('userRoleBadge').innerText = `Logged in as: ${currentUser.full_name} (${currentUser.role})`;
       
-      // Allow all users to create and manage master list records & material pricing
-      document.getElementById('addMasterBtn').classList.remove('hidden');
-      document.getElementById('manageMaterialsBtn').classList.remove('hidden');
+      // Only Tier 3 and above can manage material pricing
+      if (isTier3OrAbove) {
+        document.getElementById('manageMaterialsBtn').classList.remove('hidden');
+      }
 
       await loadMaterials();
       loadMasterlist();
@@ -257,13 +253,16 @@
     }
 
     function calculateMasterTotal() {
-      let total = 0;
+      let monthlySubtotal = 0;
       const inputs = document.querySelectorAll('.mat-qty-input');
       inputs.forEach(input => {
         const qty = Number(input.value || 0);
         const price = Number(input.getAttribute('data-price') || 0);
-        total += qty * price;
+        monthlySubtotal += qty * price;
       });
+      const periodEl = document.getElementById('period_months');
+      const months = periodEl ? Math.max(1, Number(periodEl.value || 1)) : 1;
+      const total = monthlySubtotal * months;
       document.getElementById('displayTotalAmount').innerText = total.toFixed(2);
       document.getElementById('total_amount').value = total.toFixed(2);
     }
@@ -277,7 +276,7 @@
         const isDirector = ['TIER_1', 'SUPER_ADMIN'].includes(currentUser.role);
 
         if (cachedMasterRecords.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400 italic">No Master List records found.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-400 italic">No Master List records found.</td></tr>`;
           return;
         }
 
@@ -401,14 +400,19 @@
             <td class="p-2.5 text-slate-500">${m.category}</td>
             <td class="p-2.5 font-bold text-blue-600">RM ${Number(m.unit_price).toFixed(2)}</td>
             <td class="p-2.5">
-              <button type="button" onclick="editMaterial(${m.id}, '${m.material_name}', '${m.category}', ${m.unit_price})" class="bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-semibold">Edit</button>
+              <button type="button" onclick="editMaterial(${m.id})" class="bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-semibold">Edit</button>
             </td>
           </tr>
         `).join('');
       }
     }
 
-    function openMaterialModal() { document.getElementById('materialModal').classList.remove('hidden'); }
+    function openMaterialModal() {
+      if (!isTier3OrAbove) {
+        return alert('Only Tier 3 users and above can manage material prices.');
+      }
+      document.getElementById('materialModal').classList.remove('hidden');
+    }
     function closeMaterialModal() { document.getElementById('materialModal').classList.add('hidden'); }
     function resetMatForm() {
       document.getElementById('mat_id').value = '';
@@ -416,11 +420,13 @@
       document.getElementById('mat_cat').value = '';
       document.getElementById('mat_price').value = '';
     }
-    function editMaterial(id, name, cat, price) {
-      document.getElementById('mat_id').value = id;
-      document.getElementById('mat_name').value = name;
-      document.getElementById('mat_cat').value = cat;
-      document.getElementById('mat_price').value = price;
+    function editMaterial(id) {
+      const mat = globalMaterials.find(m => Number(m.id) === Number(id));
+      if (!mat) return;
+      document.getElementById('mat_id').value = mat.id;
+      document.getElementById('mat_name').value = mat.material_name;
+      document.getElementById('mat_cat').value = mat.category;
+      document.getElementById('mat_price').value = mat.unit_price;
     }
 
     async function saveMaterial(e) {

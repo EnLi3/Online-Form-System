@@ -133,7 +133,12 @@
     let allSystemUsers = [];
     let allSystemZones = [];
 
+    const isTier3OrAbove = ['TIER_3', 'TIER_2', 'TIER_1', 'SUPER_ADMIN'].includes((currentUser.role || '').trim());
+
     if (!token) {
+      window.location.href = '/index.html';
+    } else if (!isTier3OrAbove) {
+      alert('Access denied. Only Tier 3 users and above can access Clinic Appendix Management.');
       window.location.href = '/index.html';
     }
 
@@ -167,8 +172,8 @@
     // Filter Tier 4 Sales Executives dynamically based on the selected Region/Zone
     function onRegionChange() {
       const regionSelect = document.getElementById('appendix_region');
-      const selectedOption = regionSelect.options[regionSelect.selectedIndex];
-      const selectedZoneId = selectedOption.getAttribute('data-zone-id');
+      const selectedOption = regionSelect.selectedIndex >= 0 ? regionSelect.options[regionSelect.selectedIndex] : null;
+      const selectedZoneId = selectedOption ? selectedOption.getAttribute('data-zone-id') : null;
       const neSelect = document.getElementById('appendix_ne_name');
 
       if (!selectedZoneId) {
@@ -237,11 +242,19 @@
           document.getElementById('appendix_id').value = r.id;
           document.getElementById('appendix_ref_no').value = r.ref_no || '';
           document.getElementById('appendix_ref_type').value = r.ref_type || '2026 New';
-          document.getElementById('appendix_region').value = r.region || '';
+          const regionSelect = document.getElementById('appendix_region');
+          if (r.region && !Array.from(regionSelect.options).some(opt => opt.value === r.region)) {
+            regionSelect.insertAdjacentHTML('beforeend', `<option value="${r.region}">${r.region}</option>`);
+          }
+          regionSelect.value = r.region || '';
           
           // Trigger region change filter to populate NE dropdown correctly when editing
           onRegionChange();
-          document.getElementById('appendix_ne_name').value = r.ne_name || '';
+          const neSelect = document.getElementById('appendix_ne_name');
+          if (r.ne_name && !Array.from(neSelect.options).some(opt => opt.value === r.ne_name)) {
+            neSelect.insertAdjacentHTML('beforeend', `<option value="${r.ne_name}">${r.ne_name}</option>`);
+          }
+          neSelect.value = r.ne_name || '';
           
           document.getElementById('appendix_hci').value = r.health_care_institution || '';
           document.getElementById('appendix_pic_name').value = r.pic_name || '';

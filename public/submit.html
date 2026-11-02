@@ -94,7 +94,11 @@
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Quantity / Unit <span class="text-red-500">*</span></label>
+                <input type="number" id="bf_qty" name="qty" value="1" min="1" required class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
+              </div>
               <div>
                 <label class="block font-semibold text-slate-600 mb-1">Monthly Rate per Unit (RM) <span class="text-red-500">*</span></label>
                 <input type="number" step="0.01" id="bf_monthly_rate" value="500" required class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none" />
@@ -201,9 +205,10 @@
     });
 
     function calculateTotal() {
+      const qty = Number(document.getElementById('bf_qty')?.value || 1);
       const rate = Number(document.getElementById('bf_monthly_rate').value || 0);
       const months = Number(document.getElementById('bf_months').value || 1);
-      const total = rate * months;
+      const total = qty * rate * months;
       document.getElementById('bf_total_amount').value = total.toFixed(2);
     }
 

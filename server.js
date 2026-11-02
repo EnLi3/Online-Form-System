@@ -68,10 +68,11 @@ app.get('/api/materials', auth, (req, res) => {
   res.json(db.prepare(`SELECT * FROM master_materials ORDER BY id ASC`).all());
 });
 
-// POST / PUT Material (Director Only)
+// POST / PUT Material (Tier 3 and above)
 app.post('/api/materials', auth, (req, res) => {
-  if (req.user.role !== 'TIER_1' && req.user.role !== 'SUPER_ADMIN') {
-    return res.status(403).json({ error: 'Only Tier 1 Directors can modify material pricing.' });
+  const userRole = (req.user.role || '').trim();
+  if (!['TIER_3', 'TIER_2', 'TIER_1', 'SUPER_ADMIN'].includes(userRole)) {
+    return res.status(403).json({ error: 'Only Tier 3 users and above can modify material pricing.' });
   }
   const { id, material_name, category, unit_price } = req.body;
   try {
@@ -281,8 +282,25 @@ app.post('/api/reports', auth, upload.array('photos', 5), async (req, res) => {
     return res.status(403).json({ error: 'Admins are restricted to user management and cannot submit reports.' });
   }
 
-    const { clinic_name, pic_name, material, start_date, end_date, amount_paid } = req.body;
-    const cleanClinicName = clinic_name.trim();
+    const {
+      ref_no: bodyRefNo,
+      clinic_name,
+      address,
+      company_name,
+      reg_no,
+      pic_name,
+      material,
+      space,
+      start_date,
+      end_date,
+      amount_paid,
+      payee,
+      bank_name,
+      bank_acc,
+      director_name,
+      period_months
+    } = req.body;
+    const cleanClinicName = (clinic_name || '').trim();
     const userZoneId = req.user.zone_id;
 
     const existingClinic = db.prepare(`
@@ -293,20 +311,82 @@ app.post('/api/reports', auth, upload.array('photos', 5), async (req, res) => {
 
     const ref_no = existingClinic 
       ? existingClinic.ref_no 
-      : `REF-${new Date().toISOString().slice(0,7).replace('-','')}-${Math.floor(1000 + Math.random() * 9000)}`;
+      : (bodyRefNo || `REF-${new Date().toISOString().slice(0,7).replace('-','')}-${Math.floor(1000 + Math.random() * 9000)}`);
 
     const finalClinicName = existingClinic ? existingClinic.clinic_name : cleanClinicName;
     const initialStatus = req.user.role === 'TIER_3' ? 'PENDING_T2' : 'PENDING_T3';
 
     const result = db.prepare(`
-      INSERT INTO reports (ref_no, clinic_name, pic_name, material, start_date, end_date, amount_paid, approval_status, created_by_id, assigned_to_id, zone_id, team_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO reports (
+        ref_no, clinic_name, address, company_name, reg_no, pic_name, material, space,
+        start_date, end_date, amount_paid, payee, bank_name, bank_acc, director_name,
+        approval_status, created_by_id, assigned_to_id, zone_id, team_id
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      ref_no, finalClinicName, pic_name.trim(), material, start_date, end_date, parseFloat(amount_paid),
-      initialStatus, req.user.id, req.user.id, req.user.zone_id, req.user.team_id
+      ref_no,
+      finalClinicName,
+      address || '',
+      company_name || payee || finalClinicName,
+      reg_no || '',
+      (pic_name || '').trim(),
+      material || 'Standard POSM',
+      space || 'Consultation Suite',
+      start_date,
+      end_date,
+      parseFloat(amount_paid || 0),
+      payee || company_name || finalClinicName,
+      bank_name || 'Maybank',
+      bank_acc || '',
+      director_name || '',
+      initialStatus,
+      req.user.id,
+      req.user.id,
+      req.user.zone_id,
+      req.user.team_id
     );
 
     const reportId = result.lastInsertRowid;
+
+    // Calculate months if not provided
+    let calcMonths = Number(period_months || 0);
+    if (!calcMonths && start_date && end_date) {
+      const s = new Date(start_date);
+      const e = new Date(end_date);
+      calcMonths = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
+      if (e.getDate() >= s.getDate()) calcMonths += 1;
+    }
+    if (!calcMonths || calcMonths < 1) calcMonths = 1;
+
+    // Also insert into masterlist_requests so it appears on the unified dashboard
+    db.prepare(`
+      INSERT INTO masterlist_requests (
+        sr_ref_no, region, ne_name, clinic_name, payee_name, hci_address,
+        placement_location, payee_acc_no, payee_bank_name, business_reg_no,
+        pic_name, start_date, end_date, period_months, material_details, materials_json, total_amount, created_by_id, approval_status, report_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      ref_no,
+      'CREC',
+      req.user.full_name,
+      finalClinicName,
+      payee || company_name || finalClinicName,
+      address || '',
+      space || 'Consultation Suite',
+      bank_acc || '',
+      bank_name || 'Maybank',
+      reg_no || '',
+      (pic_name || '').trim(),
+      start_date,
+      end_date,
+      calcMonths,
+      material || 'Standard POSM',
+      JSON.stringify({}),
+      parseFloat(amount_paid || 0),
+      req.user.id,
+      initialStatus,
+      reportId
+    );
 
     if (req.files && req.files.length > 0) {
       // document_types can be passed as a single string or array corresponding to files
@@ -880,6 +960,10 @@ app.get('/api/appendix', auth, (req, res) => {
 });
 
 app.post('/api/appendix', auth, (req, res) => {
+  const userRole = (req.user.role || '').trim();
+  if (!['TIER_3', 'TIER_2', 'TIER_1', 'SUPER_ADMIN'].includes(userRole)) {
+    return res.status(403).json({ error: 'Only Tier 3 users and above can manage the Clinic Appendix.' });
+  }
   const { id: userId } = req.user;
   const { id, ref_no, ne_name, region, ref_type, health_care_institution, pic_name, payee_details, remarks, status_text } = req.body;
 

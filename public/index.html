@@ -377,11 +377,11 @@
 <div class="grid grid-cols-2 gap-3">
   <div>
     <label class="block font-semibold text-slate-600 mb-1">Start Date</label>
-    <input type="date" name="start_date" id="start_date" required class="w-full border p-2 rounded bg-slate-50" />
+    <input type="date" name="start_date" id="edit_start_date" required class="w-full border p-2 rounded bg-slate-50" />
   </div>
   <div>
     <label class="block font-semibold text-slate-600 mb-1">End Date</label>
-    <input type="date" name="end_date" id="end_date" required class="w-full border p-2 rounded bg-slate-50" />
+    <input type="date" name="end_date" id="edit_end_date" required class="w-full border p-2 rounded bg-slate-50" />
   </div>
 </div>
         <div>
@@ -711,11 +711,11 @@
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block font-semibold text-slate-600 mb-1">Start Date</label>
-          <input type="date" name="start_date" id="start_date" required class="w-full border p-2 rounded bg-slate-50" />
+          <input type="date" name="start_date" id="start_date" onchange="calculateDurationMonths()" required class="w-full border p-2 rounded bg-slate-50" />
         </div>
         <div>
           <label class="block font-semibold text-slate-600 mb-1">End Date</label>
-          <input type="date" name="end_date" id="end_date" required class="w-full border p-2 rounded bg-slate-50" />
+          <input type="date" name="end_date" id="end_date" onchange="calculateDurationMonths()" required class="w-full border p-2 rounded bg-slate-50" />
         </div>
       </div>
 

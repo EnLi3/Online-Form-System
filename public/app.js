@@ -18,15 +18,6 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-const submitBtn = document.getElementById('btnGoToSubmit');
-  if (submitBtn) {
-    if (currentUser.role === 'ADMIN') {
-      submitBtn.classList.add('hidden');
-    } else {
-      submitBtn.classList.remove('hidden');
-    }
-  }
-
 async function login() {
   const username = document.getElementById('username').value;
   const password = document.getElementById('password').value;
@@ -68,12 +59,15 @@ async function initAppView() {
   }
 
   const navSubmitLink = document.getElementById('navSubmitLink');
+  const navAppendixLink = document.getElementById('navAppendixLink');
   const dashboardSection = document.getElementById('reportDashboardSection');
   const userBox = document.getElementById('userManagementBox');
+  const isTier3OrAbove = ['TIER_3', 'TIER_2', 'TIER_1', 'SUPER_ADMIN'].includes((currentUser.role || '').trim());
 
   // ADMIN: Show ONLY User Management (Hide dashboard & submit link)
   if (currentUser.role === 'ADMIN') {
     if (navSubmitLink) navSubmitLink.classList.add('hidden');
+    if (navAppendixLink) navAppendixLink.classList.add('hidden');
     if (dashboardSection) dashboardSection.classList.add('hidden');
     if (userBox) userBox.classList.remove('hidden');
     try { await loadMetadataAndUsers(); } catch (e) { console.error(e); }
@@ -82,6 +76,13 @@ async function initAppView() {
 
   // ALL OTHER ROLES
   if (navSubmitLink) navSubmitLink.classList.remove('hidden');
+  if (navAppendixLink) {
+    if (isTier3OrAbove) {
+      navAppendixLink.classList.remove('hidden');
+    } else {
+      navAppendixLink.classList.add('hidden');
+    }
+  }
   if (dashboardSection) dashboardSection.classList.remove('hidden');
 
   if (currentUser.role === 'SUPER_ADMIN') {
@@ -196,6 +197,7 @@ function onMasterZoneFilterChange() {
 
 function updateTeamFilterDropdown(zoneName = '') {
   const teamSelect = document.getElementById('filterTeam');
+  if (!teamSelect) return;
   let teams = globalTeamsList;
   if (zoneName) {
     const zoneObj = globalZonesList.find(z => z.name === zoneName);
@@ -208,18 +210,28 @@ function updateTeamFilterDropdown(zoneName = '') {
 }
 
 function onZoneFilterChange() {
-  const selectedZoneName = document.getElementById('filterZone').value;
+  const zoneEl = document.getElementById('filterZone');
+  const selectedZoneName = zoneEl ? zoneEl.value : '';
   updateTeamFilterDropdown(selectedZoneName);
   loadReports();
 }
 
 function resetDashboardFilters() {
-  document.getElementById('filterMonth').value = '';
-  if (document.getElementById('filterZone')) document.getElementById('filterZone').value = '';
-  if (document.getElementById('filterTeam')) document.getElementById('filterTeam').value = '';
-  document.getElementById('filterStatus').value = '';
+  const filterMonth = document.getElementById('filterMonth');
+  if (filterMonth) filterMonth.value = '';
+  const filterZone = document.getElementById('filterZone');
+  if (filterZone) filterZone.value = '';
+  const filterTeam = document.getElementById('filterTeam');
+  if (filterTeam) filterTeam.value = '';
+  const filterZoneMaster = document.getElementById('filterZoneMaster');
+  if (filterZoneMaster) filterZoneMaster.value = '';
+  const filterTeamMaster = document.getElementById('filterTeamMaster');
+  if (filterTeamMaster) filterTeamMaster.value = '';
+  const filterStatus = document.getElementById('filterStatus');
+  if (filterStatus) filterStatus.value = '';
   const searchInput = document.getElementById('searchInput');
   if (searchInput) searchInput.value = '';
+  updateTeamFilterDropdownMaster();
   updateTeamFilterDropdown();
   loadReports();
 }
@@ -235,10 +247,18 @@ function formatStatus(status) {
   }
 }
 
-async function openCompletionModalPreSelected(refNo) {
+async function openCompletionModalPreSelected(refNo, reportId = null) {
   await openCompletionModal();
   const selectEl = document.getElementById('comp_report_id');
   if (selectEl) {
+    if (reportId !== null) {
+      for (let opt of selectEl.options) {
+        if (String(opt.value) === String(reportId)) {
+          selectEl.value = opt.value;
+          return;
+        }
+      }
+    }
     for (let opt of selectEl.options) {
       if (opt.text.includes(refNo)) {
         selectEl.value = opt.value;
@@ -248,10 +268,18 @@ async function openCompletionModalPreSelected(refNo) {
   }
 }
 
-async function openMonthlyProofModalPreSelected(refNo) {
+async function openMonthlyProofModalPreSelected(refNo, reportId = null) {
   await openMonthlyProofModal();
   const selectEl = document.getElementById('proof_report_id');
   if (selectEl) {
+    if (reportId !== null) {
+      for (let opt of selectEl.options) {
+        if (String(opt.value) === String(reportId)) {
+          selectEl.value = opt.value;
+          return;
+        }
+      }
+    }
     for (let opt of selectEl.options) {
       if (opt.text.includes(refNo)) {
         selectEl.value = opt.value;
@@ -440,7 +468,7 @@ async function loadReports() {
         if (!hasSignedAgreement || !hasInitialPosmPhoto) {
           actionButtonsHtml += `
             <div>
-              <button type="button" onclick="openCompletionModalPreSelected('${r.sr_ref_no}')" class="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer w-full">
+              <button type="button" onclick="openCompletionModalPreSelected('${r.sr_ref_no}', ${targetId})" class="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer w-full">
                 📸 Submit Agreement & POSM
               </button>
             </div>
@@ -448,7 +476,7 @@ async function loadReports() {
         } else {
           actionButtonsHtml += `
             <div>
-              <button type="button" onclick="openMonthlyProofModalPreSelected('${r.sr_ref_no}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer w-full">
+              <button type="button" onclick="openMonthlyProofModalPreSelected('${r.sr_ref_no}', ${targetId})" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer w-full">
                 📅 Upload Monthly Proof
               </button>
             </div>
@@ -460,7 +488,7 @@ async function loadReports() {
 
       return `
         <tr class="border-b hover:bg-slate-50">
-          <td class="p-3 font-mono font-bold text-blue-600 cursor-pointer hover:underline" onclick="window.location.href='/montly_report.html?ref=${r.sr_ref_no}'">
+          <td class="p-3 font-mono font-bold text-blue-600 cursor-pointer hover:underline" onclick="window.location.href='/montly_report.html?ref=${encodeURIComponent(r.sr_ref_no)}&id=${r.id}'">
             ${r.sr_ref_no}
           </td>
           <td class="p-3 font-semibold text-[11px]">${r.zone_name || '-'}<br><span class="text-slate-500 font-normal">${r.team_name || '-'}</span></td>
@@ -473,6 +501,7 @@ async function loadReports() {
             <span class="px-2 py-1 rounded text-[10px] font-bold ${badgeColor}">
               ${formatStatus(status)}
             </span>
+            ${status === 'REJECTED' && r.remarks ? `<div class="text-[10px] text-red-600 mt-1 font-medium">Reason: ${r.remarks}</div>` : ''}
           </td>
           <td class="p-3">${srStatusHtml}</td>
           <td class="p-3 max-w-xs">${photoStatusHtml}</td>
@@ -576,9 +605,10 @@ function renderSummaryByMonth() {
   // Inside openSummary() or wherever report details are rendered in public/app.js:
   const actionContainer = document.getElementById('pageActionButtons');
   if (actionContainer) {
-    if (report.approval_status === 'APPROVED_CLOSED') {
+    const targetReportId = clickedReport.report_id || clickedReport.id;
+    if (clickedReport.approval_status === 'APPROVED_CLOSED') {
       actionContainer.innerHTML = `
-        <button type="button" onclick="window.location.href='/booking.html?id=${report.id}'" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition cursor-pointer">
+        <button type="button" onclick="window.location.href='/booking.html?id=${targetReportId}'" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition cursor-pointer">
           🖨️ Generate Space Rental Booking PDF
         </button>
       `;
@@ -591,8 +621,8 @@ function renderSummaryByMonth() {
     }
   }
 
-const photosContainer = document.getElementById('pagePhotosContainer');
-  const photos = targetReport.photos || [];
+  const photosContainer = document.getElementById('pagePhotosContainer');
+  const photos = clickedReport.photos || [];
 
   if (photos.length === 0) {
     photosContainer.innerHTML = `
@@ -1035,8 +1065,16 @@ async function openInvoiceModal(reportId) {
     document.getElementById('invStartDate').innerText = report.start_date || '-';
     document.getElementById('invEndDate').innerText = report.end_date || '-';
     
-    // Estimate months if not stored directly
-    const months = 2; // Default or calculated from dates
+    // Estimate months from masterlist record or start/end dates
+    const matchedRecord = cachedReports.find(r => Number(r.report_id || r.id) === Number(reportId));
+    let months = Number((matchedRecord && matchedRecord.period_months) || report.period_months || 0);
+    if (!months && report.start_date && report.end_date) {
+      const s = new Date(report.start_date);
+      const e = new Date(report.end_date);
+      months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
+      if (e.getDate() >= s.getDate()) months += 1;
+    }
+    if (!months || months < 1) months = 1;
     const monthlyRate = amount / months;
     const formattedRate = `RM ${monthlyRate.toLocaleString('en-MY', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
     
@@ -1217,13 +1255,16 @@ function renderMaterialInputs(selectedQtys = {}) {
 }
 
 function calculateMasterTotal() {
-  let total = 0;
+  let monthlySubtotal = 0;
   const inputs = document.querySelectorAll('.mat-qty-input');
   inputs.forEach(input => {
     const qty = Number(input.value || 0);
     const price = Number(input.getAttribute('data-price') || 0);
-    total += qty * price;
+    monthlySubtotal += qty * price;
   });
+  const periodEl = document.getElementById('period_months');
+  const months = periodEl ? Math.max(1, Number(periodEl.value || 1)) : 1;
+  const total = monthlySubtotal * months;
   const displayEl = document.getElementById('displayTotalAmount');
   const inputEl = document.getElementById('total_amount');
   if (displayEl) displayEl.innerText = total.toFixed(2);
@@ -1263,6 +1304,7 @@ function calculateDurationMonths() {
     
     if (months > 0 && periodInput) {
       periodInput.value = months;
+      calculateMasterTotal();
     }
   }
 }
@@ -1333,8 +1375,8 @@ async function openMasterModal(mode, id = null) {
     document.getElementById('start_date').value = todayStr;
     document.getElementById('end_date').value = todayStr;
 
-    // Duration (Months) starts at 0
-    document.getElementById('period_months').value = 0;
+    // Duration (Months) starts at 1 (minimum 1 month)
+    document.getElementById('period_months').value = 1;
 
     renderMaterialInputs({});
   }
@@ -1406,66 +1448,6 @@ async function submitMasterRecord(e) {
     }
   }
 }
-
-app.patch('/api/reports/:id/approval', auth, (req, res) => {
-  const { action, remarks } = req.body;
-  const reportId = req.params.id;
-  const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(reportId);
-  if (!report) return res.status(404).json({ error: 'Report not found' });
-
-  const userRole = (req.user.role || '').trim();
-  const currentStatus = (report.approval_status || '').trim();
-
-  if (!['SUPER_ADMIN', 'TIER_1', 'TIER_2', 'TIER_3'].includes(userRole)) {
-    return res.status(403).json({ error: 'Sales (Tier 4) cannot approve or reject reports.' });
-  }
-
-  let nextStatus = currentStatus;
-  let newRemarks = report.remarks || '';
-
-  if (action === 'REJECT') {
-    if (!remarks || !remarks.trim()) {
-      return res.status(400).json({ error: 'Please enter a rejection remark.' });
-    }
-    nextStatus = 'REJECTED';
-    newRemarks = remarks.trim();
-  } else if (action === 'APPROVE') {
-    if (userRole === 'TIER_3') {
-      nextStatus = 'PENDING_T2';
-      newRemarks = 'Approved by FOM (Tier 3 Leader)';
-    } else if (userRole === 'TIER_2') {
-      nextStatus = 'PENDING_T1';
-      newRemarks = 'Approved by Admin Exec (Tier 2 Manager)';
-    } else if (userRole === 'TIER_1' || userRole === 'SUPER_ADMIN') {
-      nextStatus = 'APPROVED_CLOSED';
-      newRemarks = 'Final Approved & Closed by Director (Tier 1)';
-    }
-  }
-
-  // Update reports status
-  db.prepare('UPDATE reports SET approval_status = ?, remarks = ? WHERE id = ?')
-    .run(nextStatus, newRemarks, reportId);
-
-  // Also sync status in masterlist_requests if linked by ref_no
-  db.prepare('UPDATE masterlist_requests SET approval_status = ? WHERE sr_ref_no = ?')
-    .run(nextStatus, report.ref_no);
-
-  res.json({ message: `Success! Status is now ${nextStatus}`, nextStatus });
-});
-
-app.get('/api/reports/:id/invoice-data', auth, (req, res) => {
-  const reportId = req.params.id;
-  const report = db.prepare(`SELECT * FROM reports WHERE id = ?`).get(reportId);
-
-  if (!report) return res.status(404).json({ error: 'Report not found' });
-
-  // Enforce lock until final director approval
-  if (report.approval_status !== 'APPROVED_CLOSED') {
-    return res.status(400).json({ error: 'Booking PDF / Invoice is locked until final approval by Director (APPROVED_CLOSED).' });
-  }
-
-  res.json(report);
-});
 
 async function openDocUploadModal() {
   const modal = document.getElementById('docUploadModal');
