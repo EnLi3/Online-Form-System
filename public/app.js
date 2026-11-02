@@ -154,16 +154,41 @@ async function loadDashboardFiltersMetadata() {
     globalZonesList = meta.zones || [];
     globalTeamsList = meta.teams || [];
 
-    // Target Masterlist dropdowns (filterZoneMaster / filterTeamMaster)
+    const role = (currentUser?.role || '').trim();
     const zoneMasterEl = document.getElementById('filterZoneMaster');
-    if (zoneMasterEl) {
-      zoneMasterEl.innerHTML = '<option value="">All Zones</option>' + 
-        globalZonesList.map(z => `<option value="${z.name}">${z.name}</option>`).join('');
-    }
-
     const teamMasterEl = document.getElementById('filterTeamMaster');
-    if (teamMasterEl) {
-      updateTeamFilterDropdownMaster();
+
+    // Tier 4 (own reports) and Tier 3 (own team reports) don't need Zone/Team filter dropdowns
+    if (role === 'TIER_4' || role === 'TIER_3') {
+      if (zoneMasterEl) {
+        zoneMasterEl.value = '';
+        zoneMasterEl.parentElement.classList.add('hidden');
+      }
+      if (teamMasterEl) {
+        teamMasterEl.value = '';
+        teamMasterEl.parentElement.classList.add('hidden');
+      }
+    } else if (role === 'TIER_2') {
+      // Tier 2 (Sales Manager) sees only their own zone, can filter by teams within their zone
+      if (zoneMasterEl) {
+        zoneMasterEl.value = '';
+        zoneMasterEl.parentElement.classList.add('hidden');
+      }
+      if (teamMasterEl) {
+        teamMasterEl.parentElement.classList.remove('hidden');
+        updateTeamFilterDropdownMaster(currentUser.zone_name || '');
+      }
+    } else {
+      // Tier 1 & Super Admin see all Zones and Teams
+      if (zoneMasterEl) {
+        zoneMasterEl.parentElement.classList.remove('hidden');
+        zoneMasterEl.innerHTML = '<option value="">All Zones</option>' + 
+          globalZonesList.map(z => `<option value="${z.name}">${z.name}</option>`).join('');
+      }
+      if (teamMasterEl) {
+        teamMasterEl.parentElement.classList.remove('hidden');
+        updateTeamFilterDropdownMaster();
+      }
     }
 
     // Support legacy filter elements if present
@@ -179,12 +204,17 @@ function updateTeamFilterDropdownMaster(zoneName = '') {
   const teamSelect = document.getElementById('filterTeamMaster');
   if (!teamSelect) return;
 
+  const role = (currentUser?.role || '').trim();
+  const effectiveZoneName = role === 'TIER_2' ? (currentUser.zone_name || zoneName) : zoneName;
+
   let teams = globalTeamsList;
-  if (zoneName) {
-    const zoneObj = globalZonesList.find(z => z.name === zoneName);
+  if (effectiveZoneName) {
+    const zoneObj = globalZonesList.find(z => z.name === effectiveZoneName);
     if (zoneObj) {
       teams = teams.filter(t => Number(t.zone_id) === Number(zoneObj.id));
     }
+  } else if (role === 'TIER_2' && currentUser.zone_id) {
+    teams = teams.filter(t => Number(t.zone_id) === Number(currentUser.zone_id));
   }
 
   teamSelect.innerHTML = '<option value="">All Teams</option>' + 
@@ -271,6 +301,26 @@ async function loadReports() {
     
     if (!res.ok) return;
     let records = await res.json();
+    const role = (currentUser.role || '').trim();
+
+    // Enforce role-based visibility on the dashboard
+    if (role === 'TIER_4') {
+      records = records.filter(r =>
+        Number(r.owner_user_id) === Number(currentUser.id) ||
+        (r.ne_name && r.ne_name.toLowerCase().trim() === (currentUser.full_name || '').toLowerCase().trim())
+      );
+    } else if (role === 'TIER_3') {
+      records = records.filter(r =>
+        (currentUser.team_id && Number(r.team_id) === Number(currentUser.team_id)) ||
+        (currentUser.team_name && r.team_name === currentUser.team_name)
+      );
+    } else if (role === 'TIER_2') {
+      records = records.filter(r =>
+        (currentUser.zone_id && Number(r.zone_id) === Number(currentUser.zone_id)) ||
+        (currentUser.zone_name && r.zone_name === currentUser.zone_name)
+      );
+    }
+    // TIER_1 and SUPER_ADMIN see all reports
 
     // Apply Search & Dropdown Filters
     if (search) {
@@ -293,7 +343,6 @@ async function loadReports() {
 
     cachedReports = records;
     const tbody = document.getElementById('reportTableBody');
-    const role = (currentUser.role || '').trim();
 
     if (!records || records.length === 0) {
       tbody.innerHTML = `<tr><td colspan="11" class="text-center py-8 text-slate-400 text-xs italic">No Master List SR requests found matching your filters.</td></tr>`;
@@ -1191,7 +1240,10 @@ function populateFromAppendix(appendixId) {
 
   document.getElementById('clinic_name').value = item.health_care_institution || '';
   document.getElementById('payee_name').value = item.payee_details || '';
-  document.getElementById('ne_name').value = item.ne_name || currentUser.full_name;
+  document.getElementById('ne_name').value =
+    (currentUser && currentUser.role === 'TIER_4')
+      ? currentUser.full_name
+      : (item.ne_name || currentUser.full_name);
   document.getElementById('region').value = item.region || 'CREC';
   
   // Auto-populate PIC from the specific appendix entry
@@ -1245,7 +1297,11 @@ async function loadAppendixIntoModal() {
   try {
     const res = await fetch('/api/appendix', { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) {
-      cachedAppendixList = await res.json();
+      let list = await res.json();
+      if (currentUser && currentUser.role === 'TIER_4') {
+        list = list.filter(a => !a.ne_name || a.ne_name.toLowerCase().trim() === (currentUser.full_name || '').toLowerCase().trim());
+      }
+      cachedAppendixList = list;
       const selectEl = document.getElementById('appendixSelector');
       if (selectEl) {
         selectEl.innerHTML = `<option value="">-- Choose from Clinic Appendix List (or type manually below) --</option>` + 

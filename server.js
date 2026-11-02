@@ -602,6 +602,7 @@ app.post('/api/users/migrate', auth, (req, res) => {
     return res.status(400).json({ error: 'Source and Target user cannot be the same.' });
   }
 
+  const fromUser = db.prepare('SELECT * FROM users WHERE id = ?').get(fromUserId);
   const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(toUserId);
   if (!targetUser) return res.status(404).json({ error: 'Target user not found' });
 
@@ -610,6 +611,14 @@ app.post('/api/users/migrate', auth, (req, res) => {
     SET assigned_to_id = ?, zone_id = COALESCE(?, zone_id), team_id = COALESCE(?, team_id)
     WHERE assigned_to_id = ?
   `).run(targetUser.id, targetUser.zone_id, targetUser.team_id, fromUserId);
+
+  if (fromUser) {
+    db.prepare(`
+      UPDATE masterlist_requests
+      SET created_by_id = ?, ne_name = ?
+      WHERE created_by_id = ? OR LOWER(TRIM(ne_name)) = LOWER(TRIM(?))
+    `).run(targetUser.id, targetUser.full_name, fromUserId, fromUser.full_name);
+  }
 
   db.prepare(`
     INSERT INTO migration_logs (from_user_id, to_user_id, performed_by_id, migrated_count)
@@ -746,13 +755,22 @@ app.post('/api/teams', auth, requireAdminOrSuper, (req, res) => {
   }
 });
 
-// Ensure historical reports carry their assigned user's zone and team
+// Ensure historical reports carry their assigned user's ID, zone, and team
 try {
+  db.prepare(`
+    UPDATE reports
+    SET assigned_to_id = COALESCE(
+          (SELECT u.id FROM masterlist_requests m JOIN users u ON LOWER(TRIM(u.full_name)) = LOWER(TRIM(m.ne_name)) WHERE m.report_id = reports.id LIMIT 1),
+          assigned_to_id
+        )
+    WHERE id IN (SELECT report_id FROM masterlist_requests WHERE report_id IS NOT NULL)
+  `).run();
+
   db.prepare(`
     UPDATE reports 
     SET zone_id = (SELECT zone_id FROM users WHERE users.id = reports.assigned_to_id),
         team_id = (SELECT team_id FROM users WHERE users.id = reports.assigned_to_id)
-    WHERE zone_id IS NULL OR team_id IS NULL
+    WHERE assigned_to_id IS NOT NULL
   `).run();
 } catch (e) {
   console.error('Data backfill error:', e);
@@ -784,26 +802,54 @@ app.get('/api/reports/:id/invoice-data', auth, (req, res) => {
 // MASTER LIST & APPROVAL PIPELINE API
 // ==========================================
 
-// GET Masterlist records
-// GET Masterlist records (Joined with reports & attached photos)
-// GET Masterlist records (Joined with reports & attached photos)
+// GET Masterlist records (Joined with reports, attached photos & role-based visibility)
 app.get('/api/masterlist', auth, (req, res) => {
   try {
-    const records = db.prepare(`
+    const currentUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id) || req.user;
+    const role = (currentUser.role || '').trim();
+    const userId = currentUser.id;
+    const userZoneId = currentUser.zone_id;
+    const userTeamId = currentUser.team_id;
+
+    let query = `
       SELECT m.*, 
              u.full_name as creator_name, 
+             COALESCE(ne_u.id, r.assigned_to_id, m.created_by_id) as owner_user_id,
              COALESCE(m.approval_status, r.approval_status, 'PENDING_T3') as approval_status, 
              COALESCE(m.report_id, r.id) as report_id,
              r.remarks,
+             COALESCE(r.zone_id, ne_u.zone_id, u.zone_id) as zone_id,
+             COALESCE(r.team_id, ne_u.team_id, u.team_id) as team_id,
              z.name as zone_name,
              t.name as team_name
       FROM masterlist_requests m 
-      LEFT JOIN users u ON m.created_by_id = u.id 
       LEFT JOIN reports r ON (m.report_id IS NOT NULL AND m.report_id = r.id)
-      LEFT JOIN zones z ON r.zone_id = z.id
-      LEFT JOIN teams t ON r.team_id = t.id
-      ORDER BY m.id DESC
-    `).all();
+      LEFT JOIN users u ON COALESCE(r.assigned_to_id, m.created_by_id) = u.id 
+      LEFT JOIN users ne_u ON LOWER(TRIM(ne_u.full_name)) = LOWER(TRIM(m.ne_name))
+      LEFT JOIN zones z ON COALESCE(r.zone_id, ne_u.zone_id, u.zone_id) = z.id
+      LEFT JOIN teams t ON COALESCE(r.team_id, ne_u.team_id, u.team_id) = t.id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (role === 'TIER_4') {
+      // Tier 4 only sees their own reports
+      query += ` AND COALESCE(ne_u.id, r.assigned_to_id, m.created_by_id) = ?`;
+      params.push(userId);
+    } else if (role === 'TIER_3') {
+      // Tier 3 sees their team's reports
+      query += ` AND COALESCE(r.team_id, ne_u.team_id, u.team_id) = ?`;
+      params.push(userTeamId || -1);
+    } else if (role === 'TIER_2') {
+      // Tier 2 sees their own zone's reports
+      query += ` AND COALESCE(r.zone_id, ne_u.zone_id, u.zone_id) = ?`;
+      params.push(userZoneId || -1);
+    }
+    // TIER_1 and SUPER_ADMIN see all reports
+
+    query += ` ORDER BY m.id DESC`;
+
+    const records = db.prepare(query).all(...params);
 
     const photoStmt = db.prepare(`
       SELECT p.* FROM report_photos p 
@@ -846,6 +892,14 @@ app.post('/api/masterlist', auth, (req, res) => {
 
     const initialStatus = role === 'TIER_3' ? 'PENDING_T2' : 'PENDING_T3';
 
+    const effectiveNeName = role === 'TIER_4' ? req.user.full_name : (ne_name || req.user.full_name);
+    const neUser = effectiveNeName
+      ? db.prepare('SELECT id, zone_id, team_id FROM users WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?)) LIMIT 1').get(effectiveNeName)
+      : null;
+    const assignedUserId = neUser ? neUser.id : userId;
+    const assignedZoneId = (neUser && neUser.zone_id) ? neUser.zone_id : zone_id;
+    const assignedTeamId = (neUser && neUser.team_id) ? neUser.team_id : team_id;
+
     // 1. Insert into reports first to get its real ID
     const reportStmt = db.prepare(`
       INSERT INTO reports (
@@ -857,7 +911,7 @@ app.post('/api/masterlist', auth, (req, res) => {
     `).run(
       assignedRefNo, clinic_name, hci_address, payee_name, business_reg_no, pic_name, material_details, placement_location,
       start_date, end_date, parseFloat(total_amount), payee_name, payee_bank_name, payee_acc_no,
-      initialStatus, userId, userId, zone_id, team_id
+      initialStatus, userId, assignedUserId, assignedZoneId, assignedTeamId
     );
 
     const newReportId = reportStmt.lastInsertRowid;
@@ -871,9 +925,9 @@ app.post('/api/masterlist', auth, (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       assignedRefNo,
-      region || 'CREC', ne_name || req.user.full_name, clinic_name, payee_name, hci_address,
+      region || 'CREC', effectiveNeName, clinic_name, payee_name, hci_address,
       placement_location, payee_acc_no, payee_bank_name, business_reg_no,
-      pic_name, start_date, end_date, period_months, material_details, JSON.stringify(materials_json || {}), total_amount, userId, initialStatus, newReportId
+      pic_name, start_date, end_date, period_months, material_details, JSON.stringify(materials_json || {}), total_amount, assignedUserId, initialStatus, newReportId
     );
 
     res.json({ message: `Masterlist SR request saved successfully with status: ${initialStatus}` });
