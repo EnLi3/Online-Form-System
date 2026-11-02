@@ -1253,10 +1253,7 @@ function populateFromAppendix(appendixId) {
 
   document.getElementById('clinic_name').value = item.health_care_institution || '';
   document.getElementById('payee_name').value = item.payee_details || '';
-  document.getElementById('ne_name').value =
-    (currentUser && currentUser.role === 'TIER_4')
-      ? currentUser.full_name
-      : (item.ne_name || currentUser.full_name);
+  document.getElementById('ne_name').value = currentUser.full_name || '';
   document.getElementById('region').value = item.region || 'CREC';
   
   // Auto-populate PIC from the specific appendix entry
@@ -1310,10 +1307,7 @@ async function loadAppendixIntoModal() {
   try {
     const res = await fetch('/api/appendix', { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) {
-      let list = await res.json();
-      if (currentUser && currentUser.role === 'TIER_4') {
-        list = list.filter(a => !a.ne_name || a.ne_name.toLowerCase().trim() === (currentUser.full_name || '').toLowerCase().trim());
-      }
+      const list = await res.json();
       cachedAppendixList = list;
       const selectEl = document.getElementById('appendixSelector');
       if (selectEl) {

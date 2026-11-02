@@ -95,7 +95,6 @@
               <th class="p-3">Health Care Institution</th>
               <th class="p-3">Person In Charge (PIC)</th>
               <th class="p-3">Region</th>
-              <th class="p-3">NE (Sales Exec)</th>
               <th class="p-3">Payee Details</th>
               <th class="p-3">Status</th>
               <th class="p-3">Action</th>
@@ -129,19 +128,11 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block font-semibold text-slate-600 mb-1">Region (Zone)</label>
-            <select name="region" id="appendix_region" required class="w-full border p-2 rounded bg-white font-medium">
-              <option value="">-- Select Region / Zone --</option>
-            </select>
-          </div>
-          <div>
-            <label class="block font-semibold text-slate-600 mb-1">NE (Sales Exec - Tier 4)</label>
-            <select name="ne_name" id="appendix_ne_name" required class="w-full border p-2 rounded bg-white font-medium">
-              <option value="">-- Select Sales Executive --</option>
-            </select>
-          </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">Region (Zone)</label>
+          <select name="region" id="appendix_region" required class="w-full border p-2 rounded bg-white font-medium">
+            <option value="">-- Select Region / Zone --</option>
+          </select>
         </div>
 
         <div>
@@ -195,7 +186,7 @@
 
     async function loadDropdownMetadata() {
       try {
-        // 1. Fetch Zones for Region dropdown
+        // Fetch Zones for Region dropdown
         const zoneRes = await fetch('/api/metadata/zones-teams', { headers: { Authorization: `Bearer ${token}` } });
         if (zoneRes.ok) {
           const meta = await zoneRes.json();
@@ -204,46 +195,10 @@
           regionSelect.innerHTML = `<option value="">-- Select Region / Zone --</option>` + 
             allSystemZones.map(z => `<option value="${z.name}" data-zone-id="${z.id}">${z.name}</option>`).join('');
         }
-
-        // 2. Fetch all users
-        const userRes = await fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } });
-        if (userRes.ok) {
-          allSystemUsers = await userRes.json();
-        }
       } catch (e) {
         console.error('Metadata load error:', e);
       }
     }
-
-    // Filter Tier 4 Sales Executives dynamically based on the selected Region/Zone
-    function onRegionChange() {
-      const regionSelect = document.getElementById('appendix_region');
-      const selectedOption = regionSelect.selectedIndex >= 0 ? regionSelect.options[regionSelect.selectedIndex] : null;
-      const selectedZoneId = selectedOption ? selectedOption.getAttribute('data-zone-id') : null;
-      const neSelect = document.getElementById('appendix_ne_name');
-
-      if (!selectedZoneId) {
-        neSelect.innerHTML = `<option value="">-- Select Region First --</option>`;
-        return;
-      }
-
-      // Filter active Tier 4 users belonging to this zone_id
-      const filteredSales = allSystemUsers.filter(u => 
-        u.role === 'TIER_4' && 
-        u.status === 'ACTIVE' && 
-        Number(u.zone_id) === Number(selectedZoneId)
-      );
-
-      if (filteredSales.length === 0) {
-        neSelect.innerHTML = `<option value="">-- No Sales Exec found in this Zone --</option>`;
-      } else {
-        neSelect.innerHTML = `<option value="">-- Select Sales Executive (Tier 4) --</option>` + 
-          filteredSales.map(u => `<option value="${u.full_name}">${u.full_name} (@${u.username})</option>`).join('');
-      }
-    }
-
-    // Attach onchange listener to region select in DOM
-    document.getElementById('appendix_region').addEventListener('change', onRegionChange);
 
     async function loadAppendixTable() {
       try {
@@ -253,7 +208,7 @@
         const tbody = document.getElementById('appendixTableBody');
 
         if (cachedAppendix.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-400 italic">No clinic appendix records found. Click '+ Add New Clinic to Appendix' above.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400 italic">No clinic appendix records found. Click '+ Add New Clinic to Appendix' above.</td></tr>`;
           return;
         }
 
@@ -264,7 +219,6 @@
             <td class="p-3 font-bold text-blue-700">${r.health_care_institution}</td>
             <td class="p-3 font-semibold text-slate-700">${r.pic_name || '-'}</td>
             <td class="p-3">${r.region || '-'}</td>
-            <td class="p-3">${r.ne_name || '-'}</td>
             <td class="p-3">${r.payee_details || '-'}</td>
             <td class="p-3 text-emerald-700 font-semibold">${r.status_text || '-'}</td>
             <td class="p-3"><button type="button" onclick="openAppendixModal('edit', ${r.id})" class="bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer">Edit</button></td>
@@ -294,14 +248,6 @@
           }
           regionSelect.value = r.region || '';
           
-          // Trigger region change filter to populate NE dropdown correctly when editing
-          onRegionChange();
-          const neSelect = document.getElementById('appendix_ne_name');
-          if (r.ne_name && !Array.from(neSelect.options).some(opt => opt.value === r.ne_name)) {
-            neSelect.insertAdjacentHTML('beforeend', `<option value="${r.ne_name}">${r.ne_name}</option>`);
-          }
-          neSelect.value = r.ne_name || '';
-          
           document.getElementById('appendix_hci').value = r.health_care_institution || '';
           document.getElementById('appendix_pic_name').value = r.pic_name || '';
           document.getElementById('appendix_payee').value = r.payee_details || '';
@@ -310,7 +256,6 @@
       } else {
         document.getElementById('appendixModalTitle').innerText = 'Add New Clinic to Appendix';
         document.getElementById('appendix_ref_no').value = `APP-${new Date().toISOString().slice(0,7).replace('-','')}-${Math.floor(1000 + Math.random() * 9000)}`;
-        document.getElementById('appendix_ne_name').innerHTML = `<option value="">-- Select Region First --</option>`;
       }
       modal.classList.remove('hidden');
     }

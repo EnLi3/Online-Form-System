@@ -908,13 +908,11 @@ app.post('/api/masterlist', auth, (req, res) => {
 
     const initialStatus = role === 'TIER_3' ? 'PENDING_T2' : 'PENDING_T3';
 
-    const effectiveNeName = role === 'TIER_4' ? req.user.full_name : (ne_name || req.user.full_name);
-    const neUser = effectiveNeName
-      ? db.prepare('SELECT id, zone_id, team_id FROM users WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?)) LIMIT 1').get(effectiveNeName)
-      : null;
-    const assignedUserId = neUser ? neUser.id : userId;
-    const assignedZoneId = (neUser && neUser.zone_id) ? neUser.zone_id : zone_id;
-    const assignedTeamId = (neUser && neUser.team_id) ? neUser.team_id : team_id;
+    const creatorUser = db.prepare('SELECT id, full_name, zone_id, team_id FROM users WHERE id = ?').get(userId) || req.user;
+    const effectiveNeName = creatorUser.full_name || req.user.full_name || ne_name;
+    const assignedUserId = userId;
+    const assignedZoneId = creatorUser.zone_id || zone_id;
+    const assignedTeamId = creatorUser.team_id || team_id;
 
     // 1. Insert into reports first to get its real ID
     const reportStmt = db.prepare(`
@@ -1052,16 +1050,16 @@ app.post('/api/appendix', auth, (req, res) => {
 
     if (id) {
       db.prepare(`
-        UPDATE clinic_appendix SET ref_no = ?, ne_name = ?, region = ?, ref_type = ?, health_care_institution = ?, pic_name = ?, payee_details = ?, remarks = ?, status_text = ?
+        UPDATE clinic_appendix SET ref_no = ?, ne_name = COALESCE(?, ne_name, ''), region = ?, ref_type = ?, health_care_institution = ?, pic_name = ?, payee_details = ?, remarks = ?, status_text = ?
         WHERE id = ?
-      `).run(generatedRefNo, ne_name, region, ref_type, health_care_institution, pic_name || '', payee_details, remarks || '', status_text, id);
+      `).run(generatedRefNo, ne_name || null, region, ref_type, health_care_institution, pic_name || '', payee_details, remarks || '', status_text, id);
       res.json({ message: 'Appendix entry updated successfully!', ref_no: generatedRefNo });
     } else {
       const defaultStatus = `Added to Clinic Appendix List on ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
       db.prepare(`
         INSERT INTO clinic_appendix (ref_no, ne_name, region, ref_type, health_care_institution, pic_name, payee_details, remarks, status_text, created_by_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(generatedRefNo, ne_name, region, ref_type || '2026 New', health_care_institution, pic_name || '', payee_details, remarks || '', status_text || defaultStatus, userId);
+      `).run(generatedRefNo, ne_name || '', region, ref_type || '2026 New', health_care_institution, pic_name || '', payee_details, remarks || '', status_text || defaultStatus, userId);
       res.json({ message: 'New clinic & PIC added to Appendix with unique Ref No ' + generatedRefNo, ref_no: generatedRefNo });
     }
   } catch (err) {
