@@ -61,15 +61,19 @@ async function initAppView() {
   }
 
   const navSubmitLink = document.getElementById('navSubmitLink');
+  const navMasterlistLink = document.getElementById('navMasterlistLink');
   const navAppendixLink = document.getElementById('navAppendixLink');
+  const navBookingLink = document.getElementById('navBookingLink');
   const dashboardSection = document.getElementById('reportDashboardSection');
   const userBox = document.getElementById('userManagementBox');
   const isTier3OrAbove = ['TIER_3', 'TIER_2', 'TIER_1', 'SUPER_ADMIN'].includes((currentUser.role || '').trim());
 
-  // ADMIN: Show ONLY User Management (Hide dashboard & submit link)
-  if (currentUser.role === 'ADMIN') {
+  // ADMIN: Show ONLY User Management (Hide dashboard, masterlist, appendix & booking PDF links)
+  if ((currentUser.role || '').trim() === 'ADMIN') {
     if (navSubmitLink) navSubmitLink.classList.add('hidden');
+    if (navMasterlistLink) navMasterlistLink.classList.add('hidden');
     if (navAppendixLink) navAppendixLink.classList.add('hidden');
+    if (navBookingLink) navBookingLink.classList.add('hidden');
     if (dashboardSection) dashboardSection.classList.add('hidden');
     if (userBox) userBox.classList.remove('hidden');
     try { await loadMetadataAndUsers(); } catch (e) { console.error(e); }
@@ -78,6 +82,8 @@ async function initAppView() {
 
   // ALL OTHER ROLES
   if (navSubmitLink) navSubmitLink.classList.remove('hidden');
+  if (navMasterlistLink) navMasterlistLink.classList.remove('hidden');
+  if (navBookingLink) navBookingLink.classList.remove('hidden');
   if (navAppendixLink) {
     if (isTier3OrAbove) {
       navAppendixLink.classList.remove('hidden');
@@ -392,6 +398,8 @@ async function loadReports() {
 
       // 2. Photo Verification & Workflow Warnings
       const photos = r.photos || [];
+      const docCount = photos.length;
+
       const hasSignedAgreement = photos.some(p => 
         (p.doc_type || '').toLowerCase().includes('signed agreement') || 
         (p.doc_type || '').toLowerCase().includes('booking form') ||
@@ -404,6 +412,12 @@ async function loadReports() {
       );
 
       let photoStatusHtml = '';
+
+      if (docCount === 0) {
+        photoStatusHtml += `<span class="text-red-600 font-extrabold text-[10px] block bg-red-50 p-1 rounded border border-red-200 mb-1">
+          ⚠️ WARNING: Supporting Document missing! Please upload supporting document.
+        </span>`;
+      }
 
       if (!hasSignedAgreement || !hasInitialPosmPhoto) {
         if (status === 'APPROVED_CLOSED') {
@@ -454,13 +468,12 @@ async function loadReports() {
         }
       }
 
-      const docCount = photos.length;
-      const docButtonHtml = docCount > 0 
-        ? `<button type="button" onclick="openDocumentsModal(${r.report_id || r.id})" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2.5 py-1 rounded text-[10px] font-bold cursor-pointer w-full">📄 View Docs (${docCount})</button>`
-        : `<span class="text-[10px] text-slate-400">No docs attached</span>`;
-
       // Contextual Action Buttons (Edit, Approve, Reject, View Docs, PDF, Uploads)
       const targetId = r.report_id || r.id;
+
+      const docButtonHtml = docCount > 0 
+        ? `<button type="button" onclick="openDocumentsModal(${targetId})" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2.5 py-1 rounded text-[10px] font-bold cursor-pointer w-full">📄 View Docs (${docCount})</button>`
+        : `<button type="button" onclick="openDocUploadModal(${targetId}, ${r.id}, '${r.sr_ref_no}')" class="bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1 rounded text-[10px] font-bold cursor-pointer w-full">📁 Upload Supporting Doc</button>`;
 
       let actionButtonsHtml = `
         <div class="flex space-x-1 mb-1">
@@ -1462,7 +1475,7 @@ async function submitMasterRecord(e) {
 
     alert(data.message);
     closeMasterModal();
-    loadReports();
+    await loadReports();
   } catch (err) {
     alert('Error: ' + err.message);
   } finally {
@@ -1473,19 +1486,53 @@ async function submitMasterRecord(e) {
   }
 }
 
-async function openDocUploadModal() {
+async function openDocUploadModal(preselectReportId = null, preselectMasterId = null, preselectRefNo = null) {
   const modal = document.getElementById('docUploadModal');
   const selectEl = document.getElementById('doc_report_id');
-  
+  const bannerEl = document.getElementById('docUploadRequiredBanner');
+  const closeBtn = document.getElementById('docUploadCloseBtn');
+  const cancelBtn = document.getElementById('docUploadCancelBtn');
+
+  if (bannerEl) bannerEl.classList.remove('hidden');
+  if (closeBtn) closeBtn.classList.remove('hidden');
+  if (cancelBtn) cancelBtn.classList.remove('hidden');
+
   try {
     const res = await fetch('/api/masterlist', { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) {
       const records = await res.json();
       selectEl.innerHTML = `<option value="">-- Choose Clinic / REF No --</option>` + 
-        records.map(r => `<option value="${r.report_id || r.id}">${r.sr_ref_no} - ${r.clinic_name}</option>`).join('');
+        records.map(r => {
+          const val = `${r.report_id || r.id}:${r.id}`;
+          return `<option value="${val}" data-report-id="${r.report_id || r.id}" data-master-id="${r.id}" data-ref="${r.sr_ref_no}">${r.sr_ref_no} - ${r.clinic_name} (${r.start_date} to ${r.end_date})</option>`;
+        }).join('');
+
+      if (preselectReportId || preselectMasterId || preselectRefNo) {
+        for (const opt of selectEl.options) {
+          const optMasterId = opt.getAttribute('data-master-id');
+          const optReportId = opt.getAttribute('data-report-id');
+          const optRef = opt.getAttribute('data-ref');
+          if (
+            (preselectMasterId && String(optMasterId) === String(preselectMasterId)) ||
+            (preselectReportId && String(optReportId) === String(preselectReportId)) ||
+            (!preselectMasterId && !preselectReportId && preselectRefNo && optRef === preselectRefNo)
+          ) {
+            selectEl.value = opt.value;
+            break;
+          }
+        }
+      }
     }
   } catch (e) {
     console.error(e);
+  }
+
+  if (selectEl) {
+    if ((preselectReportId || preselectMasterId) && selectEl.value) {
+      selectEl.classList.add('pointer-events-none', 'bg-slate-100');
+    } else {
+      selectEl.classList.remove('pointer-events-none', 'bg-slate-100');
+    }
   }
 
   if (modal) modal.classList.remove('hidden');
@@ -1529,6 +1576,8 @@ function closeDocumentsModal() {
 }
 
 function closeDocUploadModal() {
+  const selectEl = document.getElementById('doc_report_id');
+  if (selectEl) selectEl.classList.remove('pointer-events-none', 'bg-slate-100');
   const modal = document.getElementById('docUploadModal');
   if (modal) modal.classList.add('hidden');
 }
@@ -1537,7 +1586,17 @@ async function submitSupportingDocument(e) {
   e.preventDefault();
   const form = e.target;
   const formData = new FormData(form);
-  const reportId = document.getElementById('doc_report_id').value;
+  const rawVal = document.getElementById('doc_report_id').value;
+  if (!rawVal) {
+    return alert('Please select a Report / REF No.');
+  }
+  const reportId = rawVal.split(':')[0];
+
+  const submitBtn = document.getElementById('docUploadSubmitBtn');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Uploading...';
+  }
 
   try {
     const res = await fetch(`/api/reports/${reportId}`, {
@@ -1554,6 +1613,11 @@ async function submitSupportingDocument(e) {
     loadReports();
   } catch (err) {
     alert('Error uploading document: ' + err.message);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Upload Document';
+    }
   }
 }
 

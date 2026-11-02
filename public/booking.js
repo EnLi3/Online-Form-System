@@ -1,6 +1,12 @@
 // public/booking.js
 const token = sessionStorage.getItem('clinic_token');
-if (!token) {
+const savedUser = sessionStorage.getItem('clinic_user');
+if (!token || !savedUser) {
+  window.location.href = '/index.html';
+}
+const currentUser = JSON.parse(savedUser || '{}');
+if ((currentUser.role || '').trim() === 'ADMIN') {
+  alert('Admins are restricted to user management and cannot access Booking PDF.');
   window.location.href = '/index.html';
 }
 

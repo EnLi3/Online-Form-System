@@ -774,10 +774,14 @@
   <div class="bg-white max-w-lg w-full rounded-2xl p-6 sm:p-8 my-auto shadow-xl">
     <div class="flex justify-between items-center border-b pb-3 mb-4">
       <h3 class="font-bold text-lg text-blue-700">Upload Supporting Document by Photo</h3>
-      <button type="button" onclick="closeDocUploadModal()" class="text-slate-500 hover:text-black font-bold cursor-pointer">✕</button>
+      <button type="button" id="docUploadCloseBtn" onclick="closeDocUploadModal()" class="text-slate-500 hover:text-black font-bold cursor-pointer">✕</button>
     </div>
 
-    <form onsubmit="submitSupportingDocument(event)" class="space-y-4 text-xs">
+    <div id="docUploadRequiredBanner" class="hidden bg-amber-50 border border-amber-300 text-amber-800 p-3 rounded-xl text-xs font-semibold mb-4">
+      ⚠️ Supporting Document Required: Please upload the supporting document (e.g. Borang 15 / APC, Official Receipt) to complete your new SR Request.
+    </div>
+
+    <form id="docUploadForm" onsubmit="submitSupportingDocument(event)" class="space-y-4 text-xs">
       <div>
         <label class="block font-semibold text-slate-600 mb-1">Select Report / Link by REF No</label>
         <select id="doc_report_id" required class="w-full border p-2 rounded bg-white font-mono font-bold text-blue-600">
@@ -796,8 +800,8 @@
       </div>
 
       <div class="flex justify-end space-x-2 pt-3 border-t">
-        <button type="button" onclick="closeDocUploadModal()" class="bg-slate-200 px-4 py-2 rounded font-semibold cursor-pointer">Cancel</button>
-        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded font-semibold cursor-pointer">Upload Document</button>
+        <button type="button" id="docUploadCancelBtn" onclick="closeDocUploadModal()" class="bg-slate-200 px-4 py-2 rounded font-semibold cursor-pointer">Cancel</button>
+        <button type="submit" id="docUploadSubmitBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded font-semibold cursor-pointer">Upload Document</button>
       </div>
     </form>
   </div>

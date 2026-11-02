@@ -430,10 +430,17 @@ app.post('/api/reports', auth, upload.array('photos', 5), async (req, res) => {
 // ==========================================
 app.put('/api/reports/:id', auth, upload.array('photos', 5), async (req, res) => {
   try {
-    const reportId = req.params.id;
-    const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(reportId);
+    const targetId = req.params.id;
+    let report = db.prepare('SELECT * FROM reports WHERE id = ?').get(targetId);
+    if (!report) {
+      const mlRow = db.prepare('SELECT report_id FROM masterlist_requests WHERE id = ?').get(targetId);
+      if (mlRow && mlRow.report_id) {
+        report = db.prepare('SELECT * FROM reports WHERE id = ?').get(mlRow.report_id);
+      }
+    }
 
     if (!report) return res.status(404).json({ error: 'Report not found' });
+    const reportId = report.id;
 
     const { clinic_name, pic_name, material, start_date, end_date, amount_paid, replace_photos, doc_type } = req.body;
 
@@ -784,6 +791,9 @@ app.listen(PORT, () => {
 // 4.5 GET FINAL INVOICE & AUTHORIZATION LETTER DATA
 // ==========================================
 app.get('/api/reports/:id/invoice-data', auth, (req, res) => {
+  if ((req.user.role || '').trim() === 'ADMIN') {
+    return res.status(403).json({ error: 'Admins are restricted to user management and cannot generate Booking PDFs.' });
+  }
   const reportId = req.params.id;
   const report = db.prepare(`SELECT * FROM reports WHERE id = ?`).get(reportId);
 
@@ -807,6 +817,9 @@ app.get('/api/masterlist', auth, (req, res) => {
   try {
     const currentUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id) || req.user;
     const role = (currentUser.role || '').trim();
+    if (role === 'ADMIN') {
+      return res.status(403).json({ error: 'Admins are restricted to user management and cannot access Master List.' });
+    }
     const userId = currentUser.id;
     const userZoneId = currentUser.zone_id;
     const userTeamId = currentUser.team_id;
@@ -869,6 +882,9 @@ app.get('/api/masterlist', auth, (req, res) => {
 // POST Masterlist record (Auto-registers as a dashboard approval report)
 app.post('/api/masterlist', auth, (req, res) => {
   const { id: userId, role, zone_id, team_id } = req.user;
+  if ((role || '').trim() === 'ADMIN') {
+    return res.status(403).json({ error: 'Admins are restricted to user management and cannot create Master List records.' });
+  }
 
   const {
     sr_ref_no, region, ne_name, clinic_name, payee_name, hci_address,
@@ -917,7 +933,7 @@ app.post('/api/masterlist', auth, (req, res) => {
     const newReportId = reportStmt.lastInsertRowid;
 
     // 2. Insert into masterlist_requests with direct report_id linkage
-    db.prepare(`
+    const masterStmt = db.prepare(`
       INSERT INTO masterlist_requests (
         sr_ref_no, region, ne_name, clinic_name, payee_name, hci_address,
         placement_location, payee_acc_no, payee_bank_name, business_reg_no,
@@ -930,7 +946,13 @@ app.post('/api/masterlist', auth, (req, res) => {
       pic_name, start_date, end_date, period_months, material_details, JSON.stringify(materials_json || {}), total_amount, assignedUserId, initialStatus, newReportId
     );
 
-    res.json({ message: `Masterlist SR request saved successfully with status: ${initialStatus}` });
+    res.json({
+      message: `Masterlist SR request saved (${assignedRefNo}). Please upload the required supporting document to complete submission.`,
+      report_id: newReportId,
+      master_id: masterStmt.lastInsertRowid,
+      sr_ref_no: assignedRefNo,
+      clinic_name
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create Masterlist record: ' + err.message });
   }
@@ -938,6 +960,9 @@ app.post('/api/masterlist', auth, (req, res) => {
 
 // PUT Masterlist record (Update existing SR Request)
 app.put('/api/masterlist/:id', auth, (req, res) => {
+  if ((req.user.role || '').trim() === 'ADMIN') {
+    return res.status(403).json({ error: 'Admins are restricted to user management and cannot modify Master List records.' });
+  }
   const recordId = req.params.id;
   const {
     sr_ref_no, region, ne_name, clinic_name, payee_name, hci_address,
