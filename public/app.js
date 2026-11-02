@@ -43,7 +43,9 @@ async function initAppView() {
 
   const greetingEl = document.getElementById('userGreeting');
   if (greetingEl) {
-    greetingEl.innerText = `${currentUser.full_name} (${currentUser.role})`;
+    greetingEl.innerText = currentUser.full_name.includes('(')
+      ? currentUser.full_name
+      : `${currentUser.full_name} (${currentUser.role})`;
   }
   
   let hierarchyMeta = `Zone: ${currentUser.zone_name || 'All'} | Team: ${currentUser.team_name || 'All'}`;
