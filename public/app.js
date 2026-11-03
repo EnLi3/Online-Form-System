@@ -1115,7 +1115,8 @@ async function openInvoiceModal(reportId) {
     document.getElementById('invTotalAmountFoot').innerText = formattedAmount;
 
     // Signatures
-    document.getElementById('invSignDirector').innerText = report.director_name || 'David (Sales Director - T1)';
+    const approverDirector = report.director_name || (matchedRecord && matchedRecord.director_name) || 'Director';
+    document.getElementById('invSignDirector').innerText = approverDirector;
     document.getElementById('invAckClinic').innerText = report.clinic_name || '-';
     document.getElementById('invAckBehalf').innerText = report.company_name || report.clinic_name || '-';
     document.getElementById('invAckPic').innerText = report.pic_name || '-';

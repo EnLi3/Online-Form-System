@@ -110,12 +110,16 @@ try {
   // Column already exists, safe to ignore
 }
 
-// Ensure report_id column exists in masterlist_requests
+// Ensure report_id and director_name columns exist in masterlist_requests & reports
 try {
   db.prepare(`ALTER TABLE masterlist_requests ADD COLUMN report_id INTEGER`).run();
-} catch (e) {
-  // Column already exists, safe to ignore
-}
+} catch (e) {}
+try {
+  db.prepare(`ALTER TABLE masterlist_requests ADD COLUMN director_name TEXT`).run();
+} catch (e) {}
+try {
+  db.prepare(`ALTER TABLE reports ADD COLUMN director_name TEXT`).run();
+} catch (e) {}
 
 // Link existing masterlist_requests to their matching reports by ref_no & dates
 try {
@@ -535,6 +539,7 @@ app.patch('/api/reports/:id/approval', auth, (req, res) => {
 
   let nextStatus = currentStatus;
   let newRemarks = report.remarks || '';
+  let approvedDirectorName = report.director_name || null;
 
   if (action === 'REJECT') {
     if (!remarks || !remarks.trim()) {
@@ -544,8 +549,10 @@ app.patch('/api/reports/:id/approval', auth, (req, res) => {
     newRemarks = remarks.trim();
   } else if (action === 'APPROVE') {
     if (userRole === 'TIER_1' || userRole === 'SUPER_ADMIN') {
+      const approverUser = db.prepare('SELECT full_name, role FROM users WHERE id = ?').get(req.user.id) || req.user;
+      approvedDirectorName = approverUser.full_name || req.user.full_name || 'Director';
       nextStatus = 'APPROVED_CLOSED';
-      newRemarks = 'Final Approved & Closed by Director/Admin';
+      newRemarks = `Final Approved & Closed by ${approvedDirectorName}`;
     } else if (userRole === 'TIER_2') {
       nextStatus = 'PENDING_T1';
       newRemarks = 'Approved by Sales Manager';
@@ -557,34 +564,34 @@ app.patch('/api/reports/:id/approval', auth, (req, res) => {
     return res.status(400).json({ error: 'Invalid action provided.' });
   }
 
-  // Update ONLY this specific report record
-  db.prepare('UPDATE reports SET approval_status = ?, remarks = ? WHERE id = ?')
-    .run(nextStatus, newRemarks, report.id);
+  // Update ONLY this specific report record (including director_name when final approved)
+  db.prepare('UPDATE reports SET approval_status = ?, remarks = ?, director_name = COALESCE(?, director_name) WHERE id = ?')
+    .run(nextStatus, newRemarks, approvedDirectorName, report.id);
 
   // CRITICAL FIX: Update ONLY the specific masterlist entry linked to this report.
   // DO NOT update by sr_ref_no so other duration records remain untouched!
   if (mlRow) {
-    db.prepare('UPDATE masterlist_requests SET approval_status = ?, report_id = ? WHERE id = ?')
-      .run(nextStatus, report.id, mlRow.id);
+    db.prepare('UPDATE masterlist_requests SET approval_status = ?, report_id = ?, director_name = COALESCE(?, director_name) WHERE id = ?')
+      .run(nextStatus, report.id, approvedDirectorName, mlRow.id);
   } else {
-    const updated = db.prepare('UPDATE masterlist_requests SET approval_status = ? WHERE report_id = ?')
-      .run(nextStatus, report.id);
+    const updated = db.prepare('UPDATE masterlist_requests SET approval_status = ?, director_name = COALESCE(?, director_name) WHERE report_id = ?')
+      .run(nextStatus, approvedDirectorName, report.id);
     
     // If old records had report_id NULL, update the single newest masterlist row for this date/period
     if (updated.changes === 0) {
       db.prepare(`
         UPDATE masterlist_requests 
-        SET approval_status = ?, report_id = ? 
+        SET approval_status = ?, report_id = ?, director_name = COALESCE(?, director_name)
         WHERE id = (
           SELECT id FROM masterlist_requests 
           WHERE sr_ref_no = ? AND (report_id IS NULL OR report_id = ?) 
           ORDER BY id DESC LIMIT 1
         )
-      `).run(nextStatus, report.id, report.ref_no, report.id);
+      `).run(nextStatus, report.id, approvedDirectorName, report.ref_no, report.id);
     }
   }
 
-  res.json({ message: `Success! Status is now ${nextStatus}`, nextStatus, reportId: report.id });
+  res.json({ message: `Success! Status is now ${nextStatus}`, nextStatus, reportId: report.id, director_name: approvedDirectorName });
 });
 // ==========================================
 // 5. MIGRATION & USERS
@@ -794,14 +801,33 @@ app.get('/api/reports/:id/invoice-data', auth, (req, res) => {
   if ((req.user.role || '').trim() === 'ADMIN') {
     return res.status(403).json({ error: 'Admins are restricted to user management and cannot generate Booking PDFs.' });
   }
-  const reportId = req.params.id;
-  const report = db.prepare(`SELECT * FROM reports WHERE id = ?`).get(reportId);
+  const targetId = req.params.id;
+  let report = db.prepare(`SELECT * FROM reports WHERE id = ?`).get(targetId);
+  let mlRow = null;
+  if (!report) {
+    mlRow = db.prepare(`SELECT * FROM masterlist_requests WHERE id = ?`).get(targetId);
+    if (mlRow && mlRow.report_id) {
+      report = db.prepare(`SELECT * FROM reports WHERE id = ?`).get(mlRow.report_id);
+    }
+  } else {
+    mlRow = db.prepare(`SELECT * FROM masterlist_requests WHERE report_id = ? ORDER BY id DESC LIMIT 1`).get(report.id);
+  }
 
   if (!report) return res.status(404).json({ error: 'Report not found' });
 
   // Enforce lock until final director approval
   if (report.approval_status !== 'APPROVED_CLOSED') {
     return res.status(400).json({ error: 'Booking PDF / Invoice is locked until final approval by Director (APPROVED_CLOSED).' });
+  }
+
+  let directorName = report.director_name || (mlRow && mlRow.director_name) || '';
+  if (!directorName) {
+    const t1User = db.prepare(`SELECT full_name FROM users WHERE role = 'TIER_1' AND status = 'ACTIVE' ORDER BY id ASC LIMIT 1`).get();
+    directorName = t1User ? t1User.full_name : 'Director';
+  }
+  report.director_name = directorName;
+  if (mlRow && mlRow.period_months && !report.period_months) {
+    report.period_months = mlRow.period_months;
   }
 
   res.json(report);
@@ -830,6 +856,7 @@ app.get('/api/masterlist', auth, (req, res) => {
              COALESCE(ne_u.id, r.assigned_to_id, m.created_by_id) as owner_user_id,
              COALESCE(m.approval_status, r.approval_status, 'PENDING_T3') as approval_status, 
              COALESCE(m.report_id, r.id) as report_id,
+             COALESCE(r.director_name, m.director_name) as director_name,
              r.remarks,
              COALESCE(r.zone_id, ne_u.zone_id, u.zone_id) as zone_id,
              COALESCE(r.team_id, ne_u.team_id, u.team_id) as team_id,

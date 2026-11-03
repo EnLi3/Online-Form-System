@@ -39,9 +39,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const selectEl = document.getElementById('bf_director_name');
       if (selectEl && directors.length > 0) {
-        selectEl.innerHTML = directors.map(d => 
-          `<option value="${d.full_name} (Sales Director - T1)">${d.full_name} (Sales Director - T1)</option>`
-        ).join('');
+        selectEl.innerHTML = directors.map(d => {
+          const label = d.full_name;
+          return `<option value="${label}">${label}</option>`;
+        }).join('');
+        if ((currentUser.role || '').trim() === 'TIER_1' && currentUser.full_name) {
+          selectEl.value = currentUser.full_name;
+        }
       }
     }
   } catch (err) {
@@ -71,9 +75,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (rep.payee) document.getElementById('bf_payee').value = rep.payee;
         if (rep.bank_name) document.getElementById('bf_bank_name').value = rep.bank_name;
         if (rep.bank_acc) document.getElementById('bf_bank_acc').value = rep.bank_acc;
+        if (rep.period_months) {
+          document.getElementById('bf_months').value = rep.period_months;
+        } else if (rep.start_date && rep.end_date) {
+          const s = new Date(rep.start_date);
+          const e = new Date(rep.end_date);
+          let calcMonths = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
+          if (e.getDate() >= s.getDate()) calcMonths += 1;
+          if (calcMonths > 0) document.getElementById('bf_months').value = calcMonths;
+        }
         if (rep.amount_paid) {
           const months = Number(document.getElementById('bf_months').value || 1);
           document.getElementById('bf_monthly_rate').value = (Number(rep.amount_paid) / months).toFixed(2);
+        }
+        if (rep.director_name) {
+          const dirSelect = document.getElementById('bf_director_name');
+          if (dirSelect) {
+            if (!Array.from(dirSelect.options).some(opt => opt.value === rep.director_name)) {
+              dirSelect.insertAdjacentHTML('afterbegin', `<option value="${rep.director_name}">${rep.director_name}</option>`);
+            }
+            dirSelect.value = rep.director_name;
+            dirSelect.classList.add('pointer-events-none', 'bg-slate-100');
+          }
         }
       }
     } catch (err) {
