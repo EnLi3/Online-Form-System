@@ -10,6 +10,16 @@ if ((currentUser.role || '').trim() === 'ADMIN') {
   window.location.href = '/index.html';
 }
 
+function cleanPositionText(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/\(Sales Director\s*-?\s*T1\)/gi, '(Director)')
+    .replace(/\(Sales Manager\s*-?\s*T2\)/gi, '(Administrative Executive)')
+    .replace(/\(Team Leader\s*-?\s*T3\)/gi, '(Field Operations Manager)')
+    .replace(/\((?:New\s+)?Salesperson\s*-?\s*T4\)/gi, '(Nutrition Executive)')
+    .replace(/\s*-\s*T[1-4]\b/gi, '');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const today = new Date();
   const dateInput = document.getElementById('bf_date');
@@ -40,11 +50,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const selectEl = document.getElementById('bf_director_name');
       if (selectEl && directors.length > 0) {
         selectEl.innerHTML = directors.map(d => {
-          const label = d.full_name;
+          const label = cleanPositionText(d.full_name);
           return `<option value="${label}">${label}</option>`;
         }).join('');
         if ((currentUser.role || '').trim() === 'TIER_1' && currentUser.full_name) {
-          selectEl.value = currentUser.full_name;
+          selectEl.value = cleanPositionText(currentUser.full_name);
         }
       }
     }
@@ -89,12 +99,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           document.getElementById('bf_monthly_rate').value = (Number(rep.amount_paid) / months).toFixed(2);
         }
         if (rep.director_name) {
+          const cleanDir = cleanPositionText(rep.director_name);
           const dirSelect = document.getElementById('bf_director_name');
           if (dirSelect) {
-            if (!Array.from(dirSelect.options).some(opt => opt.value === rep.director_name)) {
-              dirSelect.insertAdjacentHTML('afterbegin', `<option value="${rep.director_name}">${rep.director_name}</option>`);
+            if (!Array.from(dirSelect.options).some(opt => opt.value === cleanDir)) {
+              dirSelect.insertAdjacentHTML('afterbegin', `<option value="${cleanDir}">${cleanDir}</option>`);
             }
-            dirSelect.value = rep.director_name;
+            dirSelect.value = cleanDir;
             dirSelect.classList.add('pointer-events-none', 'bg-slate-100');
           }
         }
@@ -139,7 +150,7 @@ function updateBookingPreview() {
   const bankName = document.getElementById('bf_bank_name').value || 'Maybank';
   const bankAcc = document.getElementById('bf_bank_acc').value || '-';
   const space = document.getElementById('bf_space').value || 'Consultation Suite';
-  const selectedDirector = document.getElementById('bf_director_name').value || 'David (Sales Director - T1)';
+  const selectedDirector = cleanPositionText(document.getElementById('bf_director_name').value || 'David (Director)');
   // Calculations
   const totalRentalPerMonth = qty * monthlyRate;
   const grandTotal = totalRentalPerMonth * months;
@@ -226,7 +237,7 @@ async function submitBookingReport(e) {
   const data = await res.json();
   if (!res.ok) return alert(data.error || 'Failed to submit booking report');
 
-  alert('Booking report submitted successfully for Tier approval!');
+  alert('Booking report submitted successfully for approval!');
   window.location.href = '/index.html';
 }
 

@@ -43,16 +43,17 @@ async function initAppView() {
 
   const greetingEl = document.getElementById('userGreeting');
   if (greetingEl) {
-    greetingEl.innerText = currentUser.full_name.includes('(')
-      ? currentUser.full_name
-      : `${currentUser.full_name} (${currentUser.role})`;
+    const cleanName = cleanPositionText(currentUser.full_name || '');
+    greetingEl.innerText = cleanName.includes('(')
+      ? cleanName
+      : `${cleanName} (${formatRole(currentUser.role)})`;
   }
   
   let hierarchyMeta = `Zone: ${currentUser.zone_name || 'All'} | Team: ${currentUser.team_name || 'All'}`;
   if (currentUser.role === 'TIER_4') {
-    hierarchyMeta += ` | Leader: ${currentUser.leader_name || 'Not Assigned'} | Manager: ${currentUser.manager_name || 'Not Assigned'}`;
+    hierarchyMeta += ` | Field Operations Manager: ${cleanPositionText(currentUser.leader_name || 'Not Assigned')} | Administrative Executive: ${cleanPositionText(currentUser.manager_name || 'Not Assigned')}`;
   } else if (currentUser.role === 'TIER_3') {
-    hierarchyMeta += ` | Manager: ${currentUser.manager_name || 'Not Assigned'}`;
+    hierarchyMeta += ` | Administrative Executive: ${cleanPositionText(currentUser.manager_name || 'Not Assigned')}`;
   }
   
   const metaEl = document.getElementById('userMeta');
@@ -276,13 +277,35 @@ function resetDashboardFilters() {
 
 function formatStatus(status) {
   switch ((status || '').trim()) {
-    case 'PENDING_T3': return 'Pending Team Leader';
-    case 'PENDING_T2': return 'Pending Sales Manager';
-    case 'PENDING_T1': return 'Pending Sales Director';
+    case 'PENDING_T3': return 'Pending Field Operations Manager';
+    case 'PENDING_T2': return 'Pending Administrative Executive';
+    case 'PENDING_T1': return 'Pending Director';
     case 'APPROVED_CLOSED': return 'Approved & Closed';
     case 'REJECTED': return 'Rejected';
     default: return status || '-';
   }
+}
+
+function formatRole(role) {
+  switch ((role || '').trim()) {
+    case 'SUPER_ADMIN': return 'Super Admin';
+    case 'ADMIN': return 'System Admin';
+    case 'TIER_1': return 'Director';
+    case 'TIER_2': return 'Administrative Executive';
+    case 'TIER_3': return 'Field Operations Manager';
+    case 'TIER_4': return 'Nutrition Executive';
+    default: return role || '-';
+  }
+}
+
+function cleanPositionText(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/\(Sales Director\s*-?\s*T1\)/gi, '(Director)')
+    .replace(/\(Sales Manager\s*-?\s*T2\)/gi, '(Administrative Executive)')
+    .replace(/\(Team Leader\s*-?\s*T3\)/gi, '(Field Operations Manager)')
+    .replace(/\((?:New\s+)?Salesperson\s*-?\s*T4\)/gi, '(Nutrition Executive)')
+    .replace(/\s*-\s*T[1-4]\b/gi, '');
 }
 
 async function openCompletionModalPreSelected(refNo, reportId = null, masterId = null) {
@@ -396,9 +419,15 @@ async function loadReports() {
         srStatusHtml = `<span class="bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold text-[10px] inline-block">🔵 Upcoming</span>`;
       }
 
-      // 2. Photo Verification & Workflow Warnings
+      // 2. Photo Verification & Step-by-Step Workflow:
+      // Creating new SR -> Upload Supporting Document -> Waiting approval -> PDF Booking Form -> Upload Booking Form and POSM Photo
       const photos = r.photos || [];
       const docCount = photos.length;
+
+      // Approval is only unlocked after Supporting Document is uploaded
+      if (docCount === 0) {
+        canApprove = false;
+      }
 
       const hasSignedAgreement = photos.some(p => 
         (p.doc_type || '').toLowerCase().includes('signed agreement') || 
@@ -414,23 +443,29 @@ async function loadReports() {
       let photoStatusHtml = '';
 
       if (docCount === 0) {
+        // Stage 1: Upload Supporting Document (can wait after creating SR, gives warning)
         photoStatusHtml += `<span class="text-red-600 font-extrabold text-[10px] block bg-red-50 p-1 rounded border border-red-200 mb-1">
-          ⚠️ WARNING: Supporting Document missing! Please upload supporting document.
+          ⚠️ WARNING: Supporting Document missing! Please upload supporting document to proceed to approval.
         </span>`;
-      }
-
-      if (!hasSignedAgreement || !hasInitialPosmPhoto) {
-        if (status === 'APPROVED_CLOSED') {
-          photoStatusHtml += `<span class="text-red-600 font-extrabold text-[10px] block bg-red-50 p-1 rounded border border-red-200 mb-1">
-            ⚠️ WARNING: Final approved! Please submit Signed Agreement & Initial POSM Photo.
-          </span>`;
+      } else if (status !== 'APPROVED_CLOSED') {
+        // Stage 2: Supporting Document uploaded -> Waiting approval
+        photoStatusHtml += `<span class="text-emerald-700 font-bold text-[10px] block mb-1">✅ Supporting Document: Attached</span>`;
+        if (status === 'REJECTED') {
+          photoStatusHtml += `<span class="text-red-600 font-bold text-[10px] block">❌ Rejected — Please edit & resubmit SR.</span>`;
         } else {
           photoStatusHtml += `<span class="text-amber-600 font-semibold text-[10px] block">
-            ⏳ Awaiting Director Approval before Agreement submission.
+            ⏳ Waiting Approval (${formatStatus(status)}) before PDF Booking Form.
           </span>`;
         }
+      } else if (!hasSignedAgreement || !hasInitialPosmPhoto) {
+        // Stage 3 & 4: Approved -> Generate PDF Booking Form -> Upload Booking Form and POSM Photo
+        photoStatusHtml += `<span class="text-emerald-700 font-bold text-[10px] block mb-1">✅ Supporting Document: Attached</span>`;
+        photoStatusHtml += `<span class="text-red-600 font-extrabold text-[10px] block bg-red-50 p-1 rounded border border-red-200 mb-1">
+          ⚠️ Final Approved! Please generate PDF Booking Form, then upload Booking Form & POSM Photo.
+        </span>`;
       } else {
-        photoStatusHtml += `<span class="text-emerald-700 font-bold text-[10px] block">✅ Signed Agreement & Initial Photo: Attached</span>`;
+        // Stage 5: Completed Booking Form & Initial POSM Photo -> Monthly Proof tracking
+        photoStatusHtml += `<span class="text-emerald-700 font-bold text-[10px] block">✅ Booking Form & Initial POSM Photo: Attached</span>`;
 
         // Track Monthly POSM Proof Photos based on contract duration start/end months
         let currentLoopDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
@@ -468,7 +503,8 @@ async function loadReports() {
         }
       }
 
-      // Contextual Action Buttons (Edit, Approve, Reject, View Docs, PDF, Uploads)
+      // Contextual Action Buttons following the exact flow:
+      // 1. Upload Supporting Doc -> 2. Waiting Approval (Approve/Reject) -> 3. PDF Booking Form -> 4. Upload Booking Form & POSM Photo
       const targetId = r.report_id || r.id;
 
       const docButtonHtml = docCount > 0 
@@ -499,7 +535,7 @@ async function loadReports() {
           actionButtonsHtml += `
             <div>
               <button type="button" onclick="openCompletionModalPreSelected('${r.sr_ref_no}', ${targetId}, ${r.id})" class="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-[10px] font-bold cursor-pointer w-full">
-                📸 Submit Agreement & POSM
+                📸 Upload Booking Form & POSM
               </button>
             </div>
           `;
@@ -512,8 +548,10 @@ async function loadReports() {
             </div>
           `;
         }
+      } else if (docCount === 0) {
+        actionButtonsHtml += `<div class="text-[10px] text-amber-600 font-semibold">Upload Doc to Unlock Approval</div>`;
       } else {
-        actionButtonsHtml += `<div class="text-[10px] text-slate-400">PDF & Uploads Locked</div>`;
+        actionButtonsHtml += `<div class="text-[10px] text-slate-400">Waiting Approval</div>`;
       }
 
       return `
@@ -522,7 +560,7 @@ async function loadReports() {
             ${r.sr_ref_no}
           </td>
           <td class="p-3 font-semibold text-[11px]">${r.zone_name || '-'}<br><span class="text-slate-500 font-normal">${r.team_name || '-'}</span></td>
-          <td class="p-3"><b>${r.region || 'CREC'}</b><br><span class="text-slate-500">NE: ${r.ne_name || '-'}</span></td>
+          <td class="p-3"><b>${r.region || 'CREC'}</b><br><span class="text-slate-500">NE: ${cleanPositionText(r.ne_name || '-')}</span></td>
           <td class="p-3"><b>${r.clinic_name}</b><br><span class="text-slate-500">PIC: ${r.pic_name}</span></td>
           <td class="p-3"><b>${r.payee_name || '-'}</b><br><span class="text-slate-500 font-mono">Reg: ${r.business_reg_no || '-'}</span></td>
           <td class="p-3 text-[11px]">${r.start_date} to<br>${r.end_date} (${r.period_months || 0} mo)</td>
@@ -627,8 +665,8 @@ function renderSummaryByMonth() {
       <p class="font-semibold">${clickedReport.pic_name || '-'}</p>
     </div>
     <div class="p-3 bg-slate-50 rounded-lg">
-      <p class="text-xs text-slate-500">Sales Executive (NE)</p>
-      <p class="font-semibold">${clickedReport.ne_name || clickedReport.creator_name || '-'}</p>
+      <p class="text-xs text-slate-500">Nutrition Executive (NE)</p>
+      <p class="font-semibold">${cleanPositionText(clickedReport.ne_name || clickedReport.creator_name || '-')}</p>
     </div>
   `;
 
@@ -645,7 +683,7 @@ function renderSummaryByMonth() {
     } else {
       actionContainer.innerHTML = `
         <span class="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200 font-semibold">
-          ⏳ PDF Generation Locked until Director Approval (APPROVED_CLOSED)
+          ⏳ PDF Generation Locked until Final Director Approval
         </span>
       `;
     }
@@ -812,6 +850,11 @@ async function loadUsersTable() {
 
   tbody.innerHTML = cachedUsersList.map(u => {
     const isAdminViewingSuperAdmin = currentUser.role === 'ADMIN' && u.role === 'SUPER_ADMIN';
+    const isSelf = Number(currentUser.id) === Number(u.id);
+
+    const deleteButtonHtml = isSelf
+      ? ''
+      : `<button type="button" onclick="deleteUserAccount(${u.id}, '${u.username.replace(/'/g, "\\'")}')" class="bg-slate-700 hover:bg-red-800 text-white px-2 py-1 rounded text-[10px] font-semibold cursor-pointer">Delete</button>`;
 
     const actionButtonsHtml = isAdminViewingSuperAdmin 
       ? `<span class="text-[10px] text-slate-400 italic">Protected</span>`
@@ -820,14 +863,15 @@ async function loadUsersTable() {
         <button type="button" onclick="toggleUserStatus(${u.id}, '${u.status}')" class="${u.status === 'ACTIVE' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white px-2 py-1 rounded text-[10px] font-semibold cursor-pointer">
           ${u.status === 'ACTIVE' ? 'Disable' : 'Enable'}
         </button>
+        ${deleteButtonHtml}
       `;
 
     return `
       <tr class="border-b">
-        <td class="p-2"><b>${u.full_name}</b><br><span class="text-slate-500">@${u.username}</span></td>
-        <td class="p-2">${u.role}</td>
+        <td class="p-2"><b>${cleanPositionText(u.full_name)}</b><br><span class="text-slate-500">@${u.username}${u.zone_name ? ` • ${u.zone_name}` : ''}${u.team_name ? ` / ${u.team_name}` : ''}</span></td>
+        <td class="p-2">${formatRole(u.role)}</td>
         <td class="p-2">
-          <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold ${u.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">${u.status}</span>
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold ${u.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">${u.status === 'ACTIVE' ? 'Active' : 'Disabled'}</span>
         </td>
         <td class="p-2 space-x-1 whitespace-nowrap">
           ${actionButtonsHtml}
@@ -843,18 +887,18 @@ function openUserModal(mode, userId = null) {
   const roleSelect = document.getElementById('modal_role');
   if (currentUser.role === 'ADMIN') {
     roleSelect.innerHTML = `
-      <option value="TIER_4">Tier 4: Sales</option>
-      <option value="TIER_3">Tier 3: Sales Leader</option>
-      <option value="TIER_2">Tier 2: Sales Manager</option>
-      <option value="TIER_1">Tier 1: Sales Director</option>
+      <option value="TIER_4">Nutrition Executive</option>
+      <option value="TIER_3">Field Operations Manager</option>
+      <option value="TIER_2">Administrative Executive</option>
+      <option value="TIER_1">Director</option>
       <option value="ADMIN">Admin</option>
     `;
   } else {
     roleSelect.innerHTML = `
-      <option value="TIER_4">Tier 4: Sales</option>
-      <option value="TIER_3">Tier 3: Sales Leader</option>
-      <option value="TIER_2">Tier 2: Sales Manager</option>
-      <option value="TIER_1">Tier 1: Sales Director</option>
+      <option value="TIER_4">Nutrition Executive</option>
+      <option value="TIER_3">Field Operations Manager</option>
+      <option value="TIER_2">Administrative Executive</option>
+      <option value="TIER_1">Director</option>
       <option value="ADMIN">Admin</option>
       <option value="SUPER_ADMIN">Super Admin</option>
     `;
@@ -927,7 +971,8 @@ async function saveUser(e) {
 
 async function toggleUserStatus(userId, currentStatus) {
   const newStatus = currentStatus === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
-  if (!confirm(`Are you sure you want to set this user to ${newStatus}?`)) return;
+  const readableStatus = newStatus === 'ACTIVE' ? 'Active' : 'Disabled';
+  if (!confirm(`Are you sure you want to set this user to ${readableStatus}?`)) return;
 
   const res = await fetch(`/api/users/${userId}/status`, {
     method: 'PATCH',
@@ -937,6 +982,45 @@ async function toggleUserStatus(userId, currentStatus) {
   const data = await res.json();
   if (!res.ok) return alert(data.error);
   loadUsersTable();
+  if (currentUser.role === 'SUPER_ADMIN') loadUsersForMigration();
+}
+
+async function deleteUserAccount(userId, username) {
+  const targetUser = cachedUsersList.find(x => Number(x.id) === Number(userId));
+  if (targetUser && Number(targetUser.record_count) > 0) {
+    alert(`⚠️ Cannot delete account @${username} (${cleanPositionText(targetUser.full_name)}) because ${targetUser.record_count} SR record(s) are still under this account.\n\nPlease migrate all SR records to another user before deleting this account.`);
+    const fromEl = document.getElementById('fromUser');
+    if (fromEl && currentUser.role === 'SUPER_ADMIN') {
+      fromEl.value = String(userId);
+      fromEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      fromEl.focus();
+    }
+    return;
+  }
+
+  if (!confirm(`Are you sure you want to permanently delete account @${username}?`)) return;
+
+  const res = await fetch(`/api/users/${userId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    alert(data.error);
+    if (data.requiresMigration) {
+      const fromEl = document.getElementById('fromUser');
+      if (fromEl && currentUser.role === 'SUPER_ADMIN') {
+        fromEl.value = String(userId);
+        fromEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        fromEl.focus();
+      }
+    }
+    return;
+  }
+
+  alert(data.message);
+  loadUsersTable();
+  if (currentUser.role === 'SUPER_ADMIN') loadUsersForMigration();
 }
 
 async function importUsersCsv(e) {
@@ -1040,14 +1124,34 @@ async function loadUsersForMigration() {
   const res = await fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) return;
   const users = await res.json();
-  const opts = users.map(u => `<option value="${u.id}">${u.full_name} (${u.username})</option>`).join('');
-  document.getElementById('fromUser').innerHTML = opts;
-  document.getElementById('toUser').innerHTML = opts;
+  const opts = users.map(u => {
+    const statusTag = u.status === 'DISABLED' ? ' [Disabled]' : '';
+    return `<option value="${u.id}">${cleanPositionText(u.full_name)} (@${u.username})${statusTag}</option>`;
+  }).join('');
+  const fromEl = document.getElementById('fromUser');
+  const toEl = document.getElementById('toUser');
+  if (fromEl) fromEl.innerHTML = opts;
+  if (toEl) {
+    toEl.innerHTML = opts;
+    if (users.length > 1) toEl.selectedIndex = 1;
+  }
 }
 
 async function migrateRecords() {
-  const fromUserId = document.getElementById('fromUser').value;
-  const toUserId = document.getElementById('toUser').value;
+  const fromEl = document.getElementById('fromUser');
+  const toEl = document.getElementById('toUser');
+  const fromUserId = fromEl.value;
+  const toUserId = toEl.value;
+  if (!fromUserId || !toUserId) return alert('Please select both source and target users.');
+  if (String(fromUserId) === String(toUserId)) {
+    return alert('Source user and Target user cannot be the same.');
+  }
+  const fromLabel = fromEl.options[fromEl.selectedIndex]?.text || 'Source User';
+  const toLabel = toEl.options[toEl.selectedIndex]?.text || 'Target User';
+  if (!confirm(`Migrate all employee records from ${fromLabel} to ${toLabel}?\n(Existing Zone and Team records will be preserved)`)) {
+    return;
+  }
+
   const res = await fetch('/api/users/migrate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -1057,6 +1161,8 @@ async function migrateRecords() {
   if (!res.ok) return alert(data.error);
   alert(data.message);
   loadReports();
+  loadUsersTable();
+  loadUsersForMigration();
 }
 
 // INVOICE & LETTER HELPERS
@@ -1115,7 +1221,7 @@ async function openInvoiceModal(reportId) {
     document.getElementById('invTotalAmountFoot').innerText = formattedAmount;
 
     // Signatures
-    const approverDirector = report.director_name || (matchedRecord && matchedRecord.director_name) || 'Director';
+    const approverDirector = cleanPositionText(report.director_name || (matchedRecord && matchedRecord.director_name) || 'Director');
     document.getElementById('invSignDirector').innerText = approverDirector;
     document.getElementById('invAckClinic').innerText = report.clinic_name || '-';
     document.getElementById('invAckBehalf').innerText = report.company_name || report.clinic_name || '-';
@@ -1231,14 +1337,14 @@ async function loadAppendixDropdowns() {
       }
     }
 
-    // 2. Fetch Users and filter Tier 4 (Sales) for NE dropdown
+    // 2. Fetch Users and filter Nutrition Executives for NE dropdown
     const userRes = await fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } });
     if (userRes.ok) {
       const users = await userRes.json();
       const tier4Users = users.filter(u => u.role === 'TIER_4' && u.status === 'ACTIVE');
       const neSelect = document.getElementById('appendix_ne_name');
       if (neSelect) {
-        neSelect.innerHTML = `<option value="">-- Select Sales Executive (Tier 4) --</option>` + 
+        neSelect.innerHTML = `<option value="">-- Select Nutrition Executive --</option>` + 
           tier4Users.map(u => `<option value="${u.full_name}">${u.full_name} (@${u.username})</option>`).join('');
       }
     }
@@ -1254,7 +1360,7 @@ function populateFromAppendix(appendixId) {
 
   document.getElementById('clinic_name').value = item.health_care_institution || '';
   document.getElementById('payee_name').value = item.payee_details || '';
-  document.getElementById('ne_name').value = currentUser.full_name || '';
+  document.getElementById('ne_name').value = cleanPositionText(currentUser.full_name || '');
   document.getElementById('region').value = item.region || 'CREC';
   
   // Auto-populate PIC from the specific appendix entry
@@ -1365,7 +1471,7 @@ async function openMasterModal(mode, id = null) {
       editIdField.value = record.id;
       document.getElementById('sr_ref_no').value = record.sr_ref_no || record.ref_no;
       document.getElementById('region').value = record.region || 'CREC';
-      document.getElementById('ne_name').value = record.ne_name || currentUser.full_name;
+      document.getElementById('ne_name').value = cleanPositionText(record.ne_name || currentUser.full_name);
       document.getElementById('clinic_name').value = record.clinic_name || '';
       document.getElementById('payee_name').value = record.payee_name || record.company_name || '';
       document.getElementById('business_reg_no').value = record.business_reg_no || record.reg_no || '';
@@ -1395,7 +1501,7 @@ async function openMasterModal(mode, id = null) {
     
     // Dynamic year in Ref No
     document.getElementById('sr_ref_no').value = `SR-${currentYear}-${Math.floor(1000 + Math.random() * 9000)}`;
-    document.getElementById('ne_name').value = currentUser.full_name;
+    document.getElementById('ne_name').value = cleanPositionText(currentUser.full_name);
 
     // Default Start Date & End Date to Today's Current Date
     const today = new Date();

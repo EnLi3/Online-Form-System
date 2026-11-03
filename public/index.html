@@ -53,11 +53,11 @@
       <div>
         <label class="block text-sm font-medium">Quick Select Demo Account (Password: 123456)</label>
         <select id="quickUser" onchange="document.getElementById('username').value=this.value" class="w-full border p-2 rounded mt-1 bg-slate-50">
-          <option value="sales1">Tier 4: sales1 (Jason - Salesperson)</option>
-          <option value="sales2">Tier 4: sales2 (Emily - New Salesperson)</option>
-          <option value="leader">Tier 3: leader (Alex - Team Leader)</option>
-          <option value="manager">Tier 2: manager (Sarah - Sales Manager)</option>
-          <option value="director">Tier 1: director (David - Sales Director)</option>
+          <option value="sales1">sales1 (Jason - Nutrition Executive)</option>
+          <option value="sales2">sales2 (Emily - Nutrition Executive)</option>
+          <option value="leader">leader (Alex - Field Operations Manager)</option>
+          <option value="manager">manager (Sarah - Administrative Executive)</option>
+          <option value="director">director (David - Director)</option>
           <option value="admin">Admin (User Management)</option>
           <option value="superadmin">Super Admin (All Access + Migration + CSV)</option>
         </select>
@@ -252,11 +252,6 @@
                 Reset
               </button>
             </div>
-            <div>
-              <button type="button" onclick="openDocUploadModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg font-bold shadow-sm transition cursor-pointer">
-                📁 Upload Document
-              </button>
-            </div>
           </div>
 
         <!-- Master List Table (Unified Dashboard) -->
@@ -353,10 +348,10 @@
         <div>
           <label class="text-xs text-slate-500">Role</label>
           <select id="modal_role" onchange="handleRoleChange()" class="w-full border p-2 rounded text-xs bg-white">
-            <option value="TIER_4">Tier 4: Sales</option>
-            <option value="TIER_3">Tier 3: Sales Leader</option>
-            <option value="TIER_2">Tier 2: Sales Manager</option>
-            <option value="TIER_1">Tier 1: Sales Director</option>
+            <option value="TIER_4">Nutrition Executive</option>
+            <option value="TIER_3">Field Operations Manager</option>
+            <option value="TIER_2">Administrative Executive</option>
+            <option value="TIER_1">Director</option>
             <option value="ADMIN">Admin</option>
             <option value="SUPER_ADMIN">Super Admin</option>
           </select>
@@ -447,7 +442,7 @@
       <form id="rejectForm" onsubmit="submitRejectForm(event)" class="space-y-4 text-sm">
         <input type="hidden" id="reject_report_id" />
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Reason / Remark for Salesperson (Required):</label>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Reason / Remark for Nutrition Executive (Required):</label>
           <textarea id="reject_remarks" rows="3" required placeholder="e.g., Invoice amount doesn't match receipt photo..." class="w-full border p-2 rounded"></textarea>
         </div>
         <div class="flex space-x-2">
@@ -638,7 +633,7 @@
             <p style="margin: 0 0 36px 0;">Yours faithfully,</p>
             <div style="border-bottom: 1px solid #000; width: 80%; margin-bottom: 6px;"></div>
             <p style="font-weight: bold; margin: 0;">GENESIS ADUN SDN. BHD.</p>
-            <p style="margin: 2px 0 0 0;">Name: <span id="invSignDirector">David (Sales Director - T1)</span></p>
+            <p style="margin: 2px 0 0 0;">Name: <span id="invSignDirector">David</span></p>
             <p style="margin: 2px 0 0 0;">Designation: DIRECTOR</p>
           </td>
           <td style="width: 50%; vertical-align: top; padding-left: 20px;">
@@ -690,8 +685,8 @@
 
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block font-semibold text-slate-600 mb-1">NE (Sales Exec - Auto-assigned)</label>
-          <input name="ne_name" id="ne_name" placeholder="Sales Executive Name" readonly required class="w-full border p-2 rounded bg-slate-100 font-semibold text-slate-700" />
+          <label class="block font-semibold text-slate-600 mb-1">NE (Nutrition Executive - Auto-assigned)</label>
+          <input name="ne_name" id="ne_name" placeholder="Nutrition Executive Name" readonly required class="w-full border p-2 rounded bg-slate-100 font-semibold text-slate-700" />
         </div>
         <div>
           <label class="block font-semibold text-slate-600 mb-1">Health Care Institution (Premis)</label>
@@ -824,11 +819,11 @@
   </div>
 </div>
 
-<!-- SUBMIT SIGNED AGREEMENT & POSM PHOTO MODAL -->
+<!-- SUBMIT SIGNED BOOKING FORM & POSM PHOTO MODAL -->
 <div id="completionModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
   <div class="bg-white max-w-xl w-full rounded-2xl p-6 sm:p-8 my-auto shadow-xl">
     <div class="flex justify-between items-center border-b pb-3 mb-4">
-      <h3 class="font-bold text-lg text-blue-700">Submit Signed Agreement & POSM Photo</h3>
+      <h3 class="font-bold text-lg text-blue-700">Upload Signed Booking Form & POSM Photo</h3>
       <button type="button" onclick="closeCompletionModal()" class="text-slate-500 hover:text-black font-bold cursor-pointer">✕</button>
     </div>
 

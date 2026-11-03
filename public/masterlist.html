@@ -80,7 +80,7 @@
 
     <!-- Restricted Notice for Non-Directors -->
     <div id="restrictionNotice" class="hidden bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-xs font-semibold">
-      ℹ️ Note: You are viewing in read-only mode. Only Tier 1 Sales Directors are authorized to create or modify Master List SR requests.
+      ℹ️ Note: You are viewing in read-only mode. Only Directors are authorized to create or modify Master List SR requests.
     </div>
 
     <!-- Master List Table Container -->
@@ -127,8 +127,8 @@
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block font-semibold text-slate-600 mb-1">NE (Sales Exec)</label>
-            <input name="ne_name" id="ne_name" placeholder="Sales Executive Name" required class="w-full border p-2 rounded bg-slate-50" />
+            <label class="block font-semibold text-slate-600 mb-1">NE (Nutrition Executive)</label>
+            <input name="ne_name" id="ne_name" placeholder="Nutrition Executive Name" required class="w-full border p-2 rounded bg-slate-50" />
           </div>
           <div>
             <label class="block font-semibold text-slate-600 mb-1">Health Care Institution (Premis)</label>
@@ -268,8 +268,44 @@
 
     const isTier3OrAbove = ['TIER_3', 'TIER_2', 'TIER_1', 'SUPER_ADMIN'].includes((currentUser.role || '').trim());
 
+    function formatStatus(status) {
+      switch ((status || '').trim()) {
+        case 'PENDING_T3': return 'Pending Field Operations Manager';
+        case 'PENDING_T2': return 'Pending Administrative Executive';
+        case 'PENDING_T1': return 'Pending Director';
+        case 'APPROVED_CLOSED': return 'Approved & Closed';
+        case 'REJECTED': return 'Rejected';
+        default: return status || '-';
+      }
+    }
+
+    function formatRole(role) {
+      switch ((role || '').trim()) {
+        case 'SUPER_ADMIN': return 'Super Admin';
+        case 'ADMIN': return 'System Admin';
+        case 'TIER_1': return 'Director';
+        case 'TIER_2': return 'Administrative Executive';
+        case 'TIER_3': return 'Field Operations Manager';
+        case 'TIER_4': return 'Nutrition Executive';
+        default: return role || '-';
+      }
+    }
+
+    function cleanPositionText(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/\(Sales Director\s*-?\s*T1\)/gi, '(Director)')
+        .replace(/\(Sales Manager\s*-?\s*T2\)/gi, '(Administrative Executive)')
+        .replace(/\(Team Leader\s*-?\s*T3\)/gi, '(Field Operations Manager)')
+        .replace(/\((?:New\s+)?Salesperson\s*-?\s*T4\)/gi, '(Nutrition Executive)')
+        .replace(/\s*-\s*T[1-4]\b/gi, '');
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
-      document.getElementById('userRoleBadge').innerText = `Logged in as: ${currentUser.full_name} (${currentUser.role})`;
+      const cleanName = cleanPositionText(currentUser.full_name || '');
+      document.getElementById('userRoleBadge').innerText = cleanName.includes('(')
+        ? `Logged in as: ${cleanName}`
+        : `Logged in as: ${cleanName} (${formatRole(currentUser.role)})`;
       
       // Only Tier 3 and above can manage material pricing & view appendix
       if (isTier3OrAbove) {
@@ -348,14 +384,14 @@
           return `
             <tr class="border-b hover:bg-slate-50">
               <td class="p-3 font-mono font-bold text-blue-600">${r.sr_ref_no}</td>
-              <td class="p-3"><b>${r.region}</b><br><span class="text-slate-500">NE: ${r.ne_name}</span></td>
+              <td class="p-3"><b>${r.region}</b><br><span class="text-slate-500">NE: ${cleanPositionText(r.ne_name)}</span></td>
               <td class="p-3"><b>${r.clinic_name}</b><br><span class="text-slate-500">PIC: ${r.pic_name}</span></td>
               <td class="p-3"><b>${r.payee_name}</b><br><span class="text-slate-500 font-mono">Reg: ${r.business_reg_no}</span></td>
               <td class="p-3 font-mono text-[11px]"><b>${r.payee_bank_name}</b><br>${r.payee_acc_no}</td>
               <td class="p-3 text-[11px]">${r.start_date} to<br>${r.end_date} (${r.period_months} mo)</td>
               <td class="p-3"><b>${r.material_details}</b><br><span class="text-blue-700 font-bold">RM ${Number(r.total_amount).toFixed(2)}</span></td>
               <td class="p-3">
-                <span class="px-2 py-1 rounded text-[10px] font-bold ${badgeColor}">${status}</span>
+                <span class="px-2 py-1 rounded text-[10px] font-bold ${badgeColor}">${formatStatus(status)}</span>
               </td>
               <td class="p-3 space-x-1">
                 <button type="button" onclick="openMasterModal('edit', ${r.id})" class="bg-amber-500 text-white px-2.5 py-1 rounded text-xs font-semibold">Edit</button>
@@ -469,7 +505,7 @@
 
     function openMaterialModal() {
       if (!isTier3OrAbove) {
-        return alert('Only Tier 3 users and above can manage material prices.');
+        return alert('Only Field Operations Managers and above can manage material prices.');
       }
       document.getElementById('materialModal').classList.remove('hidden');
     }

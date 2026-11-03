@@ -155,11 +155,11 @@ function initDb() {
 
     insertUser.run('superadmin', pass, 'Super Admin', 'SUPER_ADMIN', null, null);
     insertUser.run('admin', pass, 'System Admin', 'ADMIN', null, null);
-    insertUser.run('director', pass, 'David (Sales Director - T1)', 'TIER_1', null, null);
-    insertUser.run('manager', pass, 'Sarah (Sales Manager - T2)', 'TIER_2', zone1, null);
-    insertUser.run('leader', pass, 'Alex (Team Leader - T3)', 'TIER_3', zone1, teamA);
-    const sales1 = insertUser.run('sales1', pass, 'Jason (Salesperson - T4)', 'TIER_4', zone1, teamA).lastInsertRowid;
-    insertUser.run('sales2', pass, 'Emily (New Salesperson - T4)', 'TIER_4', zone1, teamA);
+    insertUser.run('director', pass, 'David (Director)', 'TIER_1', null, null);
+    insertUser.run('manager', pass, 'Sarah (Administrative Executive)', 'TIER_2', zone1, null);
+    insertUser.run('leader', pass, 'Alex (Field Operations Manager)', 'TIER_3', zone1, teamA);
+    const sales1 = insertUser.run('sales1', pass, 'Jason (Nutrition Executive)', 'TIER_4', zone1, teamA).lastInsertRowid;
+    insertUser.run('sales2', pass, 'Emily (Nutrition Executive)', 'TIER_4', zone1, teamA);
 
     // Seed 1 sample clinic report
     db.prepare(`

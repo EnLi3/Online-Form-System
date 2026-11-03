@@ -68,11 +68,11 @@ app.get('/api/materials', auth, (req, res) => {
   res.json(db.prepare(`SELECT * FROM master_materials ORDER BY id ASC`).all());
 });
 
-// POST / PUT Material (Tier 3 and above)
+// POST / PUT Material (Field Operations Manager and above)
 app.post('/api/materials', auth, (req, res) => {
   const userRole = (req.user.role || '').trim();
   if (!['TIER_3', 'TIER_2', 'TIER_1', 'SUPER_ADMIN'].includes(userRole)) {
-    return res.status(403).json({ error: 'Only Tier 3 users and above can modify material pricing.' });
+    return res.status(403).json({ error: 'Only Field Operations Managers and above can modify material pricing.' });
   }
   const { id, material_name, category, unit_price } = req.body;
   try {
@@ -110,12 +110,18 @@ try {
   // Column already exists, safe to ignore
 }
 
-// Ensure report_id and director_name columns exist in masterlist_requests & reports
+// Ensure report_id, director_name, zone_id, and team_id columns exist in masterlist_requests & reports
 try {
   db.prepare(`ALTER TABLE masterlist_requests ADD COLUMN report_id INTEGER`).run();
 } catch (e) {}
 try {
   db.prepare(`ALTER TABLE masterlist_requests ADD COLUMN director_name TEXT`).run();
+} catch (e) {}
+try {
+  db.prepare(`ALTER TABLE masterlist_requests ADD COLUMN zone_id INTEGER`).run();
+} catch (e) {}
+try {
+  db.prepare(`ALTER TABLE masterlist_requests ADD COLUMN team_id INTEGER`).run();
 } catch (e) {}
 try {
   db.prepare(`ALTER TABLE reports ADD COLUMN director_name TEXT`).run();
@@ -185,7 +191,8 @@ app.post('/api/login', (req, res) => {
 // 2. GET REPORTS (With Resilient Leader & Manager Lookup)
 // ==========================================
 app.get('/api/reports', auth, (req, res) => {
-  const { role, id, zone_id: userZoneId, team_id: userTeamId } = req.user;
+  const currentUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id) || req.user;
+  const { role, id, zone_id: userZoneId, team_id: userTeamId } = currentUser;
   const { search, month, zone_name, team_name, status } = req.query;
 
   let query = `
@@ -534,7 +541,7 @@ app.patch('/api/reports/:id/approval', auth, (req, res) => {
   const currentStatus = (report.approval_status || '').trim();
 
   if (!['SUPER_ADMIN', 'TIER_1', 'TIER_2', 'TIER_3'].includes(userRole)) {
-    return res.status(403).json({ error: 'Sales (Tier 4) cannot approve or reject reports.' });
+    return res.status(403).json({ error: 'Nutrition Executives cannot approve or reject reports.' });
   }
 
   let nextStatus = currentStatus;
@@ -548,6 +555,10 @@ app.patch('/api/reports/:id/approval', auth, (req, res) => {
     nextStatus = 'REJECTED';
     newRemarks = remarks.trim();
   } else if (action === 'APPROVE') {
+    const photoCountRow = db.prepare('SELECT COUNT(*) as cnt FROM report_photos WHERE report_id = ?').get(report.id);
+    if (!photoCountRow || photoCountRow.cnt === 0) {
+      return res.status(400).json({ error: 'Please upload the Supporting Document first before approving this SR Request.' });
+    }
     if (userRole === 'TIER_1' || userRole === 'SUPER_ADMIN') {
       const approverUser = db.prepare('SELECT full_name, role FROM users WHERE id = ?').get(req.user.id) || req.user;
       approvedDirectorName = approverUser.full_name || req.user.full_name || 'Director';
@@ -555,10 +566,10 @@ app.patch('/api/reports/:id/approval', auth, (req, res) => {
       newRemarks = `Final Approved & Closed by ${approvedDirectorName}`;
     } else if (userRole === 'TIER_2') {
       nextStatus = 'PENDING_T1';
-      newRemarks = 'Approved by Sales Manager';
+      newRemarks = 'Approved by Administrative Executive';
     } else if (userRole === 'TIER_3') {
       nextStatus = 'PENDING_T2';
-      newRemarks = 'Approved by Team Leader';
+      newRemarks = 'Approved by Field Operations Manager';
     }
   } else {
     return res.status(400).json({ error: 'Invalid action provided.' });
@@ -591,18 +602,39 @@ app.patch('/api/reports/:id/approval', auth, (req, res) => {
     }
   }
 
-  res.json({ message: `Success! Status is now ${nextStatus}`, nextStatus, reportId: report.id, director_name: approvedDirectorName });
+  const statusLabels = {
+    PENDING_T3: 'Pending Field Operations Manager Approval',
+    PENDING_T2: 'Pending Administrative Executive Approval',
+    PENDING_T1: 'Pending Director Approval',
+    APPROVED_CLOSED: 'Approved & Closed',
+    REJECTED: 'Rejected'
+  };
+  const readableStatus = statusLabels[nextStatus] || nextStatus;
+
+  res.json({ message: `Success! Status is now ${readableStatus}`, nextStatus, reportId: report.id, director_name: approvedDirectorName });
 });
 // ==========================================
 // 5. MIGRATION & USERS
 // ==========================================
 app.get('/api/users', auth, (req, res) => {
   const users = db.prepare(`
-    SELECT u.id, u.username, u.full_name, u.role, u.status, u.zone_id, u.team_id, z.name as zone_name, t.name as team_name
+    SELECT u.id, u.username, u.full_name, u.role, u.status, u.zone_id, u.team_id,
+           z.name as zone_name, t.name as team_name,
+           (
+             SELECT COUNT(*) FROM reports r
+             WHERE r.assigned_to_id = u.id OR r.created_by_id = u.id
+           ) as report_count,
+           (
+             SELECT COUNT(*) FROM masterlist_requests m
+             WHERE m.created_by_id = u.id OR LOWER(TRIM(m.ne_name)) = LOWER(TRIM(u.full_name))
+           ) as ml_count
     FROM users u
     LEFT JOIN zones z ON u.zone_id = z.id
     LEFT JOIN teams t ON u.team_id = t.id
-  `).all();
+  `).all().map(u => ({
+    ...u,
+    record_count: Math.max(u.report_count || 0, u.ml_count || 0)
+  }));
   res.json(users);
 });
 
@@ -612,34 +644,71 @@ app.post('/api/users/migrate', auth, (req, res) => {
   }
 
   const { fromUserId, toUserId } = req.body;
+  if (!fromUserId || !toUserId) {
+    return res.status(400).json({ error: 'Please select both source and target users.' });
+  }
   if (String(fromUserId) === String(toUserId)) {
     return res.status(400).json({ error: 'Source and Target user cannot be the same.' });
   }
 
   const fromUser = db.prepare('SELECT * FROM users WHERE id = ?').get(fromUserId);
   const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(toUserId);
+  if (!fromUser) return res.status(404).json({ error: 'Source user not found' });
   if (!targetUser) return res.status(404).json({ error: 'Target user not found' });
 
+  // Migrate reports while preserving historical zone_id and team_id on existing records
   const updateResult = db.prepare(`
     UPDATE reports 
-    SET assigned_to_id = ?, zone_id = COALESCE(?, zone_id), team_id = COALESCE(?, team_id)
+    SET assigned_to_id = ?,
+        created_by_id = CASE WHEN created_by_id = ? THEN ? ELSE created_by_id END,
+        zone_id = COALESCE(zone_id, ?),
+        team_id = COALESCE(team_id, ?)
     WHERE assigned_to_id = ?
-  `).run(targetUser.id, targetUser.zone_id, targetUser.team_id, fromUserId);
+       OR created_by_id = ?
+       OR id IN (
+         SELECT report_id FROM masterlist_requests
+         WHERE report_id IS NOT NULL
+           AND (created_by_id = ? OR LOWER(TRIM(ne_name)) = LOWER(TRIM(?)))
+       )
+  `).run(
+    targetUser.id,
+    fromUser.id, targetUser.id,
+    fromUser.zone_id || targetUser.zone_id,
+    fromUser.team_id || targetUser.team_id,
+    fromUser.id,
+    fromUser.id,
+    fromUser.id,
+    fromUser.full_name
+  );
 
-  if (fromUser) {
-    db.prepare(`
-      UPDATE masterlist_requests
-      SET created_by_id = ?, ne_name = ?
-      WHERE created_by_id = ? OR LOWER(TRIM(ne_name)) = LOWER(TRIM(?))
-    `).run(targetUser.id, targetUser.full_name, fromUserId, fromUser.full_name);
-  }
+  // Migrate masterlist_requests while preserving historical zone_id and team_id
+  const mlUpdateResult = db.prepare(`
+    UPDATE masterlist_requests
+    SET created_by_id = ?,
+        ne_name = ?,
+        zone_id = COALESCE(zone_id, ?),
+        team_id = COALESCE(team_id, ?)
+    WHERE created_by_id = ?
+       OR LOWER(TRIM(ne_name)) = LOWER(TRIM(?))
+       OR report_id IN (SELECT id FROM reports WHERE assigned_to_id = ?)
+  `).run(
+    targetUser.id,
+    targetUser.full_name,
+    fromUser.zone_id || targetUser.zone_id,
+    fromUser.team_id || targetUser.team_id,
+    fromUser.id,
+    fromUser.full_name,
+    targetUser.id
+  );
+
+  const migratedTotal = Math.max(updateResult.changes, mlUpdateResult.changes);
 
   db.prepare(`
     INSERT INTO migration_logs (from_user_id, to_user_id, performed_by_id, migrated_count)
     VALUES (?, ?, ?, ?)
-  `).run(fromUserId, toUserId, req.user.id, updateResult.changes);
+  `).run(fromUser.id, targetUser.id, req.user.id, migratedTotal);
 
-  res.json({ message: `Successfully migrated ${updateResult.changes} record(s) to ${targetUser.full_name}` });
+  res.json({ message: `Successfully migrated ${migratedTotal} record(s) from ${fromUser.full_name} to ${targetUser.full_name}` });
 });
 
 // ==========================================
@@ -671,10 +740,10 @@ app.post('/api/users', auth, requireAdminOrSuper, (req, res) => {
     }
 
     if (['TIER_4', 'TIER_3'].includes(role) && (!zone_id || !team_id)) {
-      return res.status(400).json({ error: 'Zone and Team are mandatory for Tier 3 and Tier 4 users.' });
+      return res.status(400).json({ error: 'Zone and Team are mandatory for Field Operations Managers and Nutrition Executives.' });
     }
     if (role === 'TIER_2' && !zone_id) {
-      return res.status(400).json({ error: 'Zone is mandatory for Tier 2 Managers.' });
+      return res.status(400).json({ error: 'Zone is mandatory for Administrative Executives.' });
     }
 
     const password_hash = bcrypt.hashSync(password, 10);
@@ -695,8 +764,130 @@ app.patch('/api/users/:id/status', auth, requireAdminOrSuper, (req, res) => {
   if (!['ACTIVE', 'DISABLED'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
+  const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  if (!targetUser) return res.status(404).json({ error: 'User not found' });
+  if (req.user.role === 'ADMIN' && targetUser.role === 'SUPER_ADMIN') {
+    return res.status(403).json({ error: 'Access denied. Admins cannot modify Super Admins.' });
+  }
   db.prepare('UPDATE users SET status = ? WHERE id = ?').run(status, userId);
-  res.json({ message: `User status changed to ${status}` });
+  res.json({ message: `User status changed to ${status === 'ACTIVE' ? 'Active' : 'Disabled'}` });
+});
+
+app.put('/api/users/:id', auth, requireAdminOrSuper, (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { full_name, password, role, zone_id, team_id } = req.body;
+
+    const existingUser = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    if (!existingUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (req.user.role === 'ADMIN' && (existingUser.role === 'SUPER_ADMIN' || role === 'SUPER_ADMIN')) {
+      return res.status(403).json({ error: 'Access denied. Admins cannot modify or assign Super Admin accounts.' });
+    }
+
+    if (!full_name || !role) {
+      return res.status(400).json({ error: 'Full name and role are required' });
+    }
+
+    if (['TIER_4', 'TIER_3'].includes(role) && (!zone_id || !team_id)) {
+      return res.status(400).json({ error: 'Zone and Team are mandatory for Field Operations Managers and Nutrition Executives.' });
+    }
+    if (role === 'TIER_2' && !zone_id) {
+      return res.status(400).json({ error: 'Zone is mandatory for Administrative Executives.' });
+    }
+
+    // Before switching the user's zone/team, ensure any historical records that had NULL zone_id/team_id
+    // lock in the user's previous zone_id and team_id so existing records remain in their original zone & team.
+    if (existingUser.zone_id || existingUser.team_id) {
+      db.prepare(`
+        UPDATE reports
+        SET zone_id = COALESCE(zone_id, ?),
+            team_id = COALESCE(team_id, ?)
+        WHERE assigned_to_id = ? AND (zone_id IS NULL OR team_id IS NULL)
+      `).run(existingUser.zone_id, existingUser.team_id, userId);
+
+      db.prepare(`
+        UPDATE masterlist_requests
+        SET zone_id = COALESCE(zone_id, ?),
+            team_id = COALESCE(team_id, ?)
+        WHERE (created_by_id = ? OR LOWER(TRIM(ne_name)) = LOWER(TRIM(?)))
+          AND (zone_id IS NULL OR team_id IS NULL)
+      `).run(existingUser.zone_id, existingUser.team_id, userId, existingUser.full_name);
+    }
+
+    if (password && String(password).trim() !== '') {
+      const password_hash = bcrypt.hashSync(String(password).trim(), 10);
+      db.prepare(`
+        UPDATE users
+        SET full_name = ?, password_hash = ?, role = ?, zone_id = ?, team_id = ?
+        WHERE id = ?
+      `).run(full_name.trim(), password_hash, role, zone_id || null, team_id || null, userId);
+    } else {
+      db.prepare(`
+        UPDATE users
+        SET full_name = ?, role = ?, zone_id = ?, team_id = ?
+        WHERE id = ?
+      `).run(full_name.trim(), role, zone_id || null, team_id || null, userId);
+    }
+
+    if (existingUser.full_name !== full_name.trim()) {
+      db.prepare(`
+        UPDATE masterlist_requests
+        SET ne_name = ?
+        WHERE created_by_id = ? OR LOWER(TRIM(ne_name)) = LOWER(TRIM(?))
+      `).run(full_name.trim(), userId, existingUser.full_name);
+    }
+
+    res.json({ message: `User ${existingUser.username} updated successfully! Existing records remain in their original Zone and Team.` });
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to update user: ' + err.message });
+  }
+});
+
+app.delete('/api/users/:id', auth, requireAdminOrSuper, (req, res) => {
+  try {
+    const userId = req.params.id;
+    if (Number(userId) === Number(req.user.id)) {
+      return res.status(400).json({ error: 'You cannot delete your own currently logged-in account.' });
+    }
+
+    const existingUser = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    if (!existingUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (req.user.role === 'ADMIN' && existingUser.role === 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'Access denied. Admins cannot delete Super Admin accounts.' });
+    }
+
+    // Check if any SR Record (reports or masterlist_requests) is still under this account
+    const reportCount = db.prepare(`
+      SELECT COUNT(*) as cnt FROM reports
+      WHERE assigned_to_id = ? OR created_by_id = ?
+    `).get(existingUser.id, existingUser.id).cnt;
+
+    const mlCount = db.prepare(`
+      SELECT COUNT(*) as cnt FROM masterlist_requests
+      WHERE created_by_id = ? OR LOWER(TRIM(ne_name)) = LOWER(TRIM(?))
+    `).get(existingUser.id, existingUser.full_name).cnt;
+
+    const totalRecords = Math.max(reportCount, mlCount);
+    if (totalRecords > 0) {
+      return res.status(400).json({
+        error: `⚠️ Cannot delete account @${existingUser.username} (${existingUser.full_name}) because ${totalRecords} SR record(s) are still under this account.\n\nPlease migrate all SR records to another user first before deleting this account.`,
+        requiresMigration: true,
+        recordCount: totalRecords
+      });
+    }
+
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+
+    res.json({ message: `Account @${existingUser.username} (${existingUser.full_name}) has been deleted.` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete user: ' + err.message });
+  }
 });
 
 app.post('/api/users/import-csv', auth, upload.single('file'), async (req, res) => {
@@ -769,22 +960,52 @@ app.post('/api/teams', auth, requireAdminOrSuper, (req, res) => {
   }
 });
 
-// Ensure historical reports carry their assigned user's ID, zone, and team
+// Migrate existing demo user display names & historical reports to new position titles
 try {
+  const nameUpdates = [
+    ['David (Sales Director - T1)', 'David (Director)'],
+    ['Sarah (Sales Manager - T2)', 'Sarah (Administrative Executive)'],
+    ['Alex (Team Leader - T3)', 'Alex (Field Operations Manager)'],
+    ['Jason (Salesperson - T4)', 'Jason (Nutrition Executive)'],
+    ['Emily (New Salesperson - T4)', 'Emily (Nutrition Executive)']
+  ];
+  for (const [oldName, newName] of nameUpdates) {
+    db.prepare(`UPDATE users SET full_name = ? WHERE full_name = ?`).run(newName, oldName);
+    db.prepare(`UPDATE masterlist_requests SET ne_name = ? WHERE ne_name = ?`).run(newName, oldName);
+    db.prepare(`UPDATE masterlist_requests SET director_name = ? WHERE director_name = ?`).run(newName, oldName);
+    db.prepare(`UPDATE reports SET director_name = ? WHERE director_name = ?`).run(newName, oldName);
+  }
+
   db.prepare(`
     UPDATE reports
     SET assigned_to_id = COALESCE(
-          (SELECT u.id FROM masterlist_requests m JOIN users u ON LOWER(TRIM(u.full_name)) = LOWER(TRIM(m.ne_name)) WHERE m.report_id = reports.id LIMIT 1),
-          assigned_to_id
+          assigned_to_id,
+          (SELECT u.id FROM masterlist_requests m JOIN users u ON LOWER(TRIM(u.full_name)) = LOWER(TRIM(m.ne_name)) WHERE m.report_id = reports.id LIMIT 1)
         )
-    WHERE id IN (SELECT report_id FROM masterlist_requests WHERE report_id IS NOT NULL)
+    WHERE assigned_to_id IS NULL
+      AND id IN (SELECT report_id FROM masterlist_requests WHERE report_id IS NOT NULL)
   `).run();
 
   db.prepare(`
     UPDATE reports 
-    SET zone_id = (SELECT zone_id FROM users WHERE users.id = reports.assigned_to_id),
-        team_id = (SELECT team_id FROM users WHERE users.id = reports.assigned_to_id)
-    WHERE assigned_to_id IS NOT NULL
+    SET zone_id = COALESCE(zone_id, (SELECT zone_id FROM users WHERE users.id = reports.assigned_to_id)),
+        team_id = COALESCE(team_id, (SELECT team_id FROM users WHERE users.id = reports.assigned_to_id))
+    WHERE assigned_to_id IS NOT NULL AND (zone_id IS NULL OR team_id IS NULL)
+  `).run();
+
+  db.prepare(`
+    UPDATE masterlist_requests
+    SET zone_id = COALESCE(
+          zone_id,
+          (SELECT r.zone_id FROM reports r WHERE r.id = masterlist_requests.report_id),
+          (SELECT u.zone_id FROM users u WHERE u.id = masterlist_requests.created_by_id)
+        ),
+        team_id = COALESCE(
+          team_id,
+          (SELECT r.team_id FROM reports r WHERE r.id = masterlist_requests.report_id),
+          (SELECT u.team_id FROM users u WHERE u.id = masterlist_requests.created_by_id)
+        )
+    WHERE zone_id IS NULL OR team_id IS NULL
   `).run();
 } catch (e) {
   console.error('Data backfill error:', e);
@@ -817,7 +1038,7 @@ app.get('/api/reports/:id/invoice-data', auth, (req, res) => {
 
   // Enforce lock until final director approval
   if (report.approval_status !== 'APPROVED_CLOSED') {
-    return res.status(400).json({ error: 'Booking PDF / Invoice is locked until final approval by Director (APPROVED_CLOSED).' });
+    return res.status(400).json({ error: 'Booking PDF / Invoice is locked until final approval by Director.' });
   }
 
   let directorName = report.director_name || (mlRow && mlRow.director_name) || '';
@@ -853,36 +1074,36 @@ app.get('/api/masterlist', auth, (req, res) => {
     let query = `
       SELECT m.*, 
              u.full_name as creator_name, 
-             COALESCE(ne_u.id, r.assigned_to_id, m.created_by_id) as owner_user_id,
+             COALESCE(r.assigned_to_id, ne_u.id, m.created_by_id) as owner_user_id,
              COALESCE(m.approval_status, r.approval_status, 'PENDING_T3') as approval_status, 
              COALESCE(m.report_id, r.id) as report_id,
              COALESCE(r.director_name, m.director_name) as director_name,
              r.remarks,
-             COALESCE(r.zone_id, ne_u.zone_id, u.zone_id) as zone_id,
-             COALESCE(r.team_id, ne_u.team_id, u.team_id) as team_id,
+             COALESCE(m.zone_id, r.zone_id, ne_u.zone_id, u.zone_id) as zone_id,
+             COALESCE(m.team_id, r.team_id, ne_u.team_id, u.team_id) as team_id,
              z.name as zone_name,
              t.name as team_name
       FROM masterlist_requests m 
       LEFT JOIN reports r ON (m.report_id IS NOT NULL AND m.report_id = r.id)
       LEFT JOIN users u ON COALESCE(r.assigned_to_id, m.created_by_id) = u.id 
       LEFT JOIN users ne_u ON LOWER(TRIM(ne_u.full_name)) = LOWER(TRIM(m.ne_name))
-      LEFT JOIN zones z ON COALESCE(r.zone_id, ne_u.zone_id, u.zone_id) = z.id
-      LEFT JOIN teams t ON COALESCE(r.team_id, ne_u.team_id, u.team_id) = t.id
+      LEFT JOIN zones z ON COALESCE(m.zone_id, r.zone_id, ne_u.zone_id, u.zone_id) = z.id
+      LEFT JOIN teams t ON COALESCE(m.team_id, r.team_id, ne_u.team_id, u.team_id) = t.id
       WHERE 1=1
     `;
     const params = [];
 
     if (role === 'TIER_4') {
       // Tier 4 only sees their own reports
-      query += ` AND COALESCE(ne_u.id, r.assigned_to_id, m.created_by_id) = ?`;
+      query += ` AND COALESCE(r.assigned_to_id, ne_u.id, m.created_by_id) = ?`;
       params.push(userId);
     } else if (role === 'TIER_3') {
       // Tier 3 sees their team's reports
-      query += ` AND COALESCE(r.team_id, ne_u.team_id, u.team_id) = ?`;
+      query += ` AND COALESCE(m.team_id, r.team_id, ne_u.team_id, u.team_id) = ?`;
       params.push(userTeamId || -1);
     } else if (role === 'TIER_2') {
       // Tier 2 sees their own zone's reports
-      query += ` AND COALESCE(r.zone_id, ne_u.zone_id, u.zone_id) = ?`;
+      query += ` AND COALESCE(m.zone_id, r.zone_id, ne_u.zone_id, u.zone_id) = ?`;
       params.push(userZoneId || -1);
     }
     // TIER_1 and SUPER_ADMIN see all reports
@@ -957,18 +1178,18 @@ app.post('/api/masterlist', auth, (req, res) => {
 
     const newReportId = reportStmt.lastInsertRowid;
 
-    // 2. Insert into masterlist_requests with direct report_id linkage
+    // 2. Insert into masterlist_requests with direct report_id, zone_id, and team_id linkage
     const masterStmt = db.prepare(`
       INSERT INTO masterlist_requests (
         sr_ref_no, region, ne_name, clinic_name, payee_name, hci_address,
         placement_location, payee_acc_no, payee_bank_name, business_reg_no,
-        pic_name, start_date, end_date, period_months, material_details, materials_json, total_amount, created_by_id, approval_status, report_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        pic_name, start_date, end_date, period_months, material_details, materials_json, total_amount, created_by_id, approval_status, report_id, zone_id, team_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       assignedRefNo,
       region || 'CREC', effectiveNeName, clinic_name, payee_name, hci_address,
       placement_location, payee_acc_no, payee_bank_name, business_reg_no,
-      pic_name, start_date, end_date, period_months, material_details, JSON.stringify(materials_json || {}), total_amount, assignedUserId, initialStatus, newReportId
+      pic_name, start_date, end_date, period_months, material_details, JSON.stringify(materials_json || {}), total_amount, assignedUserId, initialStatus, newReportId, assignedZoneId, assignedTeamId
     );
 
     res.json({
@@ -1066,7 +1287,7 @@ app.get('/api/appendix', auth, (req, res) => {
 app.post('/api/appendix', auth, (req, res) => {
   const userRole = (req.user.role || '').trim();
   if (!['TIER_3', 'TIER_2', 'TIER_1', 'SUPER_ADMIN'].includes(userRole)) {
-    return res.status(403).json({ error: 'Only Tier 3 users and above can manage the Clinic Appendix.' });
+    return res.status(403).json({ error: 'Only Field Operations Managers and above can manage the Clinic Appendix.' });
   }
   const { id: userId } = req.user;
   const { id, ref_no, ne_name, region, ref_type, health_care_institution, pic_name, payee_details, remarks, status_text } = req.body;

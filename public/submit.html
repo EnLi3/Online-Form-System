@@ -130,9 +130,9 @@
           </div>
 
           <div class="mt-4">
-            <label class="block font-semibold text-slate-600 mb-1">Authorized Tier 1 Director (For Approval Pipeline) <span class="text-red-500">*</span></label>
+            <label class="block font-semibold text-slate-600 mb-1">Authorized Director (For Approval Pipeline) <span class="text-red-500">*</span></label>
             <select name="director_name" id="bf_director_name" required class="w-full border p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none">
-              <option value="">Loading Tier 1 Directors...</option>
+              <option value="">Loading Directors...</option>
             </select>
           </div>
         </div>
@@ -145,7 +145,7 @@
               Upload Clinic Placement Photos / Agreement Proof (Required) <span class="text-red-500">*</span>
             </label>
             <input type="file" name="photos" required multiple accept="image/*" class="w-full max-w-xs mx-auto border p-1 rounded text-xs bg-white block" />
-            <p class="text-[10px] text-slate-400 mt-2">Upload photographic evidence to pass multi-tier review.</p>
+            <p class="text-[10px] text-slate-400 mt-2">Upload photographic evidence to pass review.</p>
           </div>
         </div>
 
@@ -184,7 +184,7 @@
         if(el) el.addEventListener('input', calculateTotal);
       });
 
-      // Fetch TIER_1 directors
+      // Fetch Directors
       try {
         const res = await fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } });
         if (res.ok) {
@@ -192,16 +192,16 @@
           const directors = users.filter(u => (u.role || '').trim().toUpperCase() === 'TIER_1' && (u.status || '').trim().toUpperCase() === 'ACTIVE');
           const selectEl = document.getElementById('bf_director_name');
           if (directors.length > 0) {
-            selectEl.innerHTML = directors.map(d => `<option value="${d.full_name} (Sales Director - T1)">${d.full_name} (Sales Director - T1)</option>`).join('');
+            selectEl.innerHTML = directors.map(d => `<option value="${d.full_name}">${d.full_name}</option>`).join('');
           } else {
-            selectEl.innerHTML = '<option value="David (Sales Director - T1)">David (Sales Director - T1)</option>';
+            selectEl.innerHTML = '<option value="David (Director)">David (Director)</option>';
           }
         }
       } catch (e) {
         console.error(e);
       }
 
-      document.getElementById('userMetaBadge').innerText = `Logged in as: ${currentUser.full_name} (${currentUser.role})`;
+      document.getElementById('userMetaBadge').innerText = `Logged in as: ${currentUser.full_name}`;
     });
 
     function calculateTotal() {
